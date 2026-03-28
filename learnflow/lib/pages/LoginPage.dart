@@ -79,7 +79,7 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          onPressed: () {},
+                          onPressed: () {}, // อยู่หน้านี้แล้ว ไม่ต้อง navigate
                           child: const Text(
                             "Log In",
                             style: TextStyle(
@@ -251,7 +251,7 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 20),
 
-                  // Log In button
+                  // Log In button ✅
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -262,7 +262,9 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(context, '/home');
+                      },
                       child: const Text(
                         "Log In",
                         style: TextStyle(

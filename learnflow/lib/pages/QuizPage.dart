@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-class QuizScreen extends StatefulWidget {
-  const QuizScreen({super.key});
+class QuizPage extends StatefulWidget {
+  const QuizPage({super.key});
 
   @override
-  State<QuizScreen> createState() => _QuizScreenState();
+  State<QuizPage> createState() => _QuizPageState();
 }
 
-class _QuizScreenState extends State<QuizScreen> {
+class _QuizPageState extends State<QuizPage> {
   int _selectedIndex = 1;
 
   static const Color primaryGreen = Color(0xFF1DBA78);
@@ -134,86 +134,91 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget _buildQuizCard(Map<String, dynamic> quiz) {
     final bool isHard = quiz['difficulty'] == 'HARD';
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cardGreen,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(quiz['icon'], color: darkGreen, size: 28),
-              ),
-              const Spacer(),
-              Row(
-                children: [
-                  const Text(
-                    'DIFFICULTY: ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black54,
-                      letterSpacing: 0.3,
-                    ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(context, '/detail-basic-math', arguments: quiz);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: cardGreen,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  Text(
-                    quiz['difficulty'],
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: isHard
-                          ? const Color(0xFFE74C3C)
-                          : const Color(0xFF27AE60),
-                      letterSpacing: 0.3,
+                  child: Icon(quiz['icon'], color: darkGreen, size: 28),
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    const Text(
+                      'DIFFICULTY: ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black54,
+                        letterSpacing: 0.3,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                quiz['title'],
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                  letterSpacing: 0.3,
+                    Text(
+                      quiz['difficulty'],
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: isHard
+                            ? const Color(0xFFE74C3C)
+                            : const Color(0xFF27AE60),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: primaryGreen,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'FOCUS TOPIC',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  quiz['title'],
+                  style: const TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+                    color: Colors.black87,
+                    letterSpacing: 0.3,
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryGreen,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'FOCUS TOPIC',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
