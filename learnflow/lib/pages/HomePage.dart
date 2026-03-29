@@ -19,19 +19,16 @@ class _HomePageState extends State<HomePage> {
     {
       'title': 'BASIC ALGEBRA REVIEW',
       'difficulty': 'EASY',
-      'difficultyColor': Color(0xFF27AE60),
       'icon': Icons.calculate_outlined,
     },
     {
       'title': 'REVIEW ADVANCED MATH',
       'difficulty': 'HARD',
-      'difficultyColor': Color(0xFFE74C3C),
       'icon': Icons.functions_outlined,
     },
     {
       'title': 'REVIEW BASIC ENGLISH',
       'difficulty': 'EASY',
-      'difficultyColor': Color(0xFF27AE60),
       'icon': Icons.menu_book_outlined,
     },
   ];
@@ -111,64 +108,68 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ── เพิ่ม GestureDetector ให้กดไปหน้า ReminderPage ──
   Widget _buildReminderCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: primaryGreen,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/reminder'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: primaryGreen,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
-            child: const Icon(
-              Icons.chat_bubble_outline,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'REMINDER',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.0,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'REMINDER',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.0,
+                    ),
                   ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'QUIZ STARTS IN 15 MINUTES',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+                  SizedBox(height: 2),
+                  Text(
+                    'QUIZ STARTS IN 15 MINUTES',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Text(
-            'NOW',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-              letterSpacing: 1.0,
+            const Text(
+              'NOW',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                letterSpacing: 1.0,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -259,32 +260,27 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const SizedBox(),
-              Row(
-                children: [
-                  const Text(
-                    'DIFFICULTY: ',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  Text(
-                    quiz['difficulty'],
-                    style: TextStyle(
-                      color: quiz['difficulty'] == 'HARD'
-                          ? const Color(0xFFFFD700)
-                          : Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
+              const Text(
+                'DIFFICULTY: ',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Text(
+                quiz['difficulty'],
+                style: TextStyle(
+                  color: quiz['difficulty'] == 'HARD'
+                      ? const Color(0xFFFFD700)
+                      : Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
             ],
           ),
@@ -353,15 +349,14 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildStartQuizButton() {
     return ElevatedButton(
-      onPressed: () {},
+      onPressed: () => Navigator.pushNamed(context, '/detail-basic-math'),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
         foregroundColor: darkGreen,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         elevation: 0,
       ),
       child: const Text(
@@ -375,20 +370,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ── Bottom nav ครบทุก tab ──
   Widget _buildBottomNavBar() {
     final items = [
-      {'icon': Icons.home_outlined, 'activeIcon': Icons.home, 'label': 'Home'},
-      {'icon': Icons.quiz_outlined, 'activeIcon': Icons.quiz, 'label': 'Quiz'},
-      {
-        'icon': Icons.bar_chart_outlined,
-        'activeIcon': Icons.bar_chart,
-        'label': 'Analytics',
-      },
-      {
-        'icon': Icons.person_outline,
-        'activeIcon': Icons.person,
-        'label': 'Profile',
-      },
+      {'icon': Icons.home_outlined,      'activeIcon': Icons.home,      'label': 'Home'},
+      {'icon': Icons.quiz_outlined,      'activeIcon': Icons.quiz,      'label': 'Quiz'},
+      {'icon': Icons.bar_chart_outlined, 'activeIcon': Icons.bar_chart, 'label': 'Analytics'},
+      {'icon': Icons.person_outline,     'activeIcon': Icons.person,    'label': 'Profile'},
     ];
 
     return Container(
@@ -412,10 +400,18 @@ class _HomePageState extends State<HomePage> {
               final isSelected = _selectedIndex == index;
               return GestureDetector(
                 onTap: () {
-                  if (index == 1) {
-                    Navigator.pushReplacementNamed(context, '/quiz');
-                  } else {
-                    setState(() => _selectedIndex = index);
+                  switch (index) {
+                    case 1:
+                      Navigator.pushReplacementNamed(context, '/quiz');
+                      break;
+                    case 2:
+                      Navigator.pushReplacementNamed(context, '/analytics');
+                      break;
+                    case 3:
+                      Navigator.pushReplacementNamed(context, '/profile');
+                      break;
+                    default:
+                      setState(() => _selectedIndex = index);
                   }
                 },
                 child: Column(

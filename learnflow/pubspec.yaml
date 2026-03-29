@@ -10,11 +10,16 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   cupertino_icons: ^1.0.8
+
+  # 📊 Chart (สำคัญสำหรับ AnalyticsPage)
+  fl_chart: ^0.66.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
   flutter_lints: ^6.0.0
 
 flutter:

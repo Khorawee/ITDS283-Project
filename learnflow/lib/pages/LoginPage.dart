@@ -79,7 +79,9 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          onPressed: () {}, // อยู่หน้านี้แล้ว ไม่ต้อง navigate
+                          onPressed: () {
+                            Navigator.pushReplacementNamed(context, '/home');
+                          }, // อยู่หน้านี้แล้ว ไม่ต้อง navigate
                           child: const Text(
                             "Log In",
                             style: TextStyle(

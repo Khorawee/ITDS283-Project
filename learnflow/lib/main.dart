@@ -9,6 +9,10 @@ import 'pages/QuizPage.dart';
 import 'pages/DetailBasicMathPage.dart';
 import 'pages/BasicMathPage.dart';
 import 'pages/ResultPage.dart';
+import 'pages/ReviewAnswerPage.dart';
+import 'pages/AnalyticsPage.dart';
+import 'pages/ProfilePage.dart';
+import 'pages/ReminderPage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,7 +25,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'LeranFlow',
+      title: 'LearnFlow',
       initialRoute: '/splash',
       routes: {
         '/splash':            (context) => const SplashScreen(),
@@ -34,6 +38,10 @@ class MyApp extends StatelessWidget {
         '/detail-basic-math': (context) => const DetailBasicMathPage(),
         '/basic-math':        (context) => const BasicMathPage(),
         '/result':            (context) => const ResultPage(),
+        '/review-answer':     (context) => const ReviewAnswerPage(),
+        '/analytics':         (context) => const AnalyticsPage(),
+        '/profile':           (context) => const ProfilePage(),
+        '/reminder':          (context) => const ReminderPage(),
       },
     );
   }
