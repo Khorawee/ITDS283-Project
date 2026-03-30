@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 import 'pages/SplashScreen.dart';
 import 'pages/OnboardingScreen.dart';
 import 'pages/LoginPage.dart';
@@ -10,11 +13,15 @@ import 'pages/DetailBasicMathPage.dart';
 import 'pages/BasicMathPage.dart';
 import 'pages/ResultPage.dart';
 import 'pages/ReviewAnswerPage.dart';
-import 'pages/AnalyticsPage.dart';
+import 'pages/Analyticspage.dart';
 import 'pages/ProfilePage.dart';
 import 'pages/ReminderPage.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
@@ -39,7 +46,7 @@ class MyApp extends StatelessWidget {
         '/basic-math':        (context) => const BasicMathPage(),
         '/result':            (context) => const ResultPage(),
         '/review-answer':     (context) => const ReviewAnswerPage(),
-        '/analytics':         (context) => const AnalyticsPage(),
+        '/analytics':         (context) => AnalyticsScreen(),
         '/profile':           (context) => const ProfilePage(),
         '/reminder':          (context) => const ReminderPage(),
       },

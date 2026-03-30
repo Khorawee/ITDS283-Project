@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -8,8 +11,100 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  bool _rememberMe = false;
+  bool _rememberMe      = false;
   bool _obscurePassword = true;
+  bool _isLoading       = false;
+
+  final TextEditingController _emailController    = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // ── Email / Password Login ────────────────────────────────────────────────
+  Future<void> _login() async {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email:    _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      Navigator.pushReplacementNamed(context, '/home');
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No account found for this email.';
+          break;
+        case 'wrong-password':
+          message = 'Incorrect password. Please try again.';
+          break;
+        case 'invalid-email':
+          message = 'Invalid email address.';
+          break;
+        case 'user-disabled':
+          message = 'This account has been disabled.';
+          break;
+        default:
+          message = e.message ?? 'Login failed. Please try again.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Google Sign-In ────────────────────────────────────────────────────────
+  Future<void> _loginWithGoogle() async {
+    setState(() => _isLoading = true);
+
+    try {
+      if (kIsWeb) {
+        // Web: ใช้ signInWithPopup
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email');
+        await FirebaseAuth.instance.signInWithPopup(googleProvider);
+      } else {
+        // Mobile: ใช้ google_sign_in
+        final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+        if (googleUser == null) {
+          setState(() => _isLoading = false);
+          return;
+        }
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken:     googleAuth.idToken,
+        );
+        await FirebaseAuth.instance.signInWithCredential(credential);
+      }
+
+      Navigator.pushReplacementNamed(context, '/home');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Google sign-in failed. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,14 +113,11 @@ class _LoginPageState extends State<LoginPage> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header
+            // ── Header ──────────────────────────────────────────────────────
             Container(
               width: double.infinity,
               padding: const EdgeInsets.only(
-                top: 60,
-                left: 24,
-                right: 24,
-                bottom: 30,
+                top: 60, left: 24, right: 24, bottom: 30,
               ),
               decoration: const BoxDecoration(color: Color(0xFF1DBA78)),
               child: Column(
@@ -38,7 +130,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    "LeranFlow",
+                    "LearnFlow",
                     style: TextStyle(color: Colors.white, fontSize: 14),
                   ),
                   const SizedBox(height: 20),
@@ -59,7 +151,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
 
-            // Form Card
+            // ── Form ─────────────────────────────────────────────────────────
             Container(
               width: double.infinity,
               color: Colors.white,
@@ -79,9 +171,7 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/home');
-                          }, // อยู่หน้านี้แล้ว ไม่ต้อง navigate
+                          onPressed: () {},
                           child: const Text(
                             "Log In",
                             style: TextStyle(
@@ -101,9 +191,8 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/register');
-                          },
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/register'),
                           child: const Text(
                             "Sign Up",
                             style: TextStyle(color: Colors.black54),
@@ -116,69 +205,25 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 24),
 
                   // Email
-                  const Text(
-                    "Email",
-                    style: TextStyle(fontSize: 14, color: Colors.black87),
-                  ),
+                  const Text("Email",
+                      style: TextStyle(fontSize: 14, color: Colors.black87)),
                   const SizedBox(height: 6),
                   TextField(
+                    controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      hintText: "example@gmail.com",
-                      hintStyle: const TextStyle(color: Colors.black45),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xFF1DBA78)),
-                      ),
-                    ),
+                    decoration: _inputDecoration(hint: "example@gmail.com"),
                   ),
 
                   const SizedBox(height: 16),
 
                   // Password
-                  const Text(
-                    "Password",
-                    style: TextStyle(fontSize: 14, color: Colors.black87),
-                  ),
+                  const Text("Password",
+                      style: TextStyle(fontSize: 14, color: Colors.black87)),
                   const SizedBox(height: 6),
                   TextField(
+                    controller: _passwordController,
                     obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      hintText: "••••••••",
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xFF1DBA78)),
-                      ),
+                    decoration: _inputDecoration(hint: "••••••••").copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -187,11 +232,8 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.grey,
                           size: 20,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
                       ),
                     ),
                   ),
@@ -209,32 +251,23 @@ class _LoginPageState extends State<LoginPage> {
                             height: 20,
                             child: Checkbox(
                               value: _rememberMe,
-                              onChanged: (val) {
-                                setState(() {
-                                  _rememberMe = val ?? false;
-                                });
-                              },
+                              onChanged: (val) =>
+                                  setState(() => _rememberMe = val ?? false),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(4),
-                              ),
+                                  borderRadius: BorderRadius.circular(4)),
                               side: BorderSide(color: Colors.grey[400]!),
                               activeColor: const Color(0xFF1DBA78),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            "Remember me",
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.black54,
-                            ),
-                          ),
+                          const Text("Remember me",
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.black54)),
                         ],
                       ),
                       TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/forgot-password');
-                        },
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/forgot-password'),
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           minimumSize: Size.zero,
@@ -243,9 +276,7 @@ class _LoginPageState extends State<LoginPage> {
                         child: const Text(
                           "Forgot Password ?",
                           style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF1DBA78),
-                          ),
+                              fontSize: 13, color: Color(0xFF1DBA78)),
                         ),
                       ),
                     ],
@@ -253,7 +284,7 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 20),
 
-                  // Log In button ✅
+                  // Log In button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -264,17 +295,24 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: () {
-                        Navigator.pushReplacementNamed(context, '/home');
-                      },
-                      child: const Text(
-                        "Log In",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      onPressed: _isLoading ? null : _login,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Log In",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                     ),
                   ),
 
@@ -285,15 +323,10 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       Expanded(child: Divider(color: Colors.grey[300])),
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          "Or",
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 13,
-                          ),
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text("Or",
+                            style: TextStyle(
+                                color: Colors.grey[500], fontSize: 13)),
                       ),
                       Expanded(child: Divider(color: Colors.grey[300])),
                     ],
@@ -306,14 +339,13 @@ class _LoginPageState extends State<LoginPage> {
                     width: double.infinity,
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 13),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         side: BorderSide(color: Colors.grey[300]!),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: () {},
+                      onPressed: _isLoading ? null : _loginWithGoogle,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -322,8 +354,7 @@ class _LoginPageState extends State<LoginPage> {
                             height: 22,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border:
-                                  Border.all(color: Colors.grey[300]!),
+                              border: Border.all(color: Colors.grey[300]!),
                             ),
                             child: const Center(
                               child: Text(
@@ -340,9 +371,7 @@ class _LoginPageState extends State<LoginPage> {
                           const Text(
                             "Continue with Google",
                             style: TextStyle(
-                              color: Colors.black87,
-                              fontSize: 14,
-                            ),
+                                color: Colors.black87, fontSize: 14),
                           ),
                         ],
                       ),
@@ -355,6 +384,29 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration({required String hint}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.black45),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFF1DBA78)),
       ),
     );
   }

@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "738177643057",
+    "project_id": "leranflow-moblie",
+    "storage_bucket": "leranflow-moblie.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:738177643057:android:9ec6041602cdb049c6db10",
+        "android_client_info": {
+          "package_name": "com.example.learnflow"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "738177643057-9ci23bpslv434s8svbc41mb1i87q0lod.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHHtgF3NGWx0RVKgEv3PTB1Z60PjHVySw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "738177643057-9ci23bpslv434s8svbc41mb1i87q0lod.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "738177643057-9qjsolmnsssnd9vulk240ugmf7p1tkai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.learnflow"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:738177643057:android:290c4ff11c9bae2dc6db10",
+        "android_client_info": {
+          "package_name": "com.learnflow.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "738177643057-1ghgkimaolqv9hr6161p6g1vvjqaavpc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.learnflow.app",
+            "certificate_hash": "f6b294f7878de4676e5e6fd197c165e450051827"
+          }
+        },
+        {
+          "client_id": "738177643057-9ci23bpslv434s8svbc41mb1i87q0lod.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHHtgF3NGWx0RVKgEv3PTB1Z60PjHVySw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "738177643057-9ci23bpslv434s8svbc41mb1i87q0lod.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "738177643057-9qjsolmnsssnd9vulk240ugmf7p1tkai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.learnflow"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
