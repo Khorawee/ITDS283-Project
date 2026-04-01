@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
 import 'ContactUsPage.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
   static const Color primaryGreen = Color(0xFF1DBA78);
   static const Color cardGreen = Color(0xFF81E3AB);
   static const Color bgColor = Color(0xFFF0FBF4);
 
-  final List<Map<String, dynamic>> _stats = const [
-    {'icon': Icons.bolt, 'value': '55', 'label': 'Quizzes'},
-    {'icon': Icons.bar_chart, 'value': 'A', 'label': 'GARD'},
-  ];
+  // ── Settings state ─────────────────────────────────────────────────────────
+  bool   _notifications    = true;
+  String _language         = 'English';
+  String _preferredSubject = 'Computer';
+  String _learningMode     = 'Normal';
 
   final List<Map<String, dynamic>> _metrics = const [
     {'label': 'Average Total Score', 'value': 0.28},
@@ -20,13 +26,87 @@ class ProfilePage extends StatelessWidget {
     {'label': 'Accuracy',            'value': 0.40},
   ];
 
-  final List<Map<String, dynamic>> _settings = const [
-    {'icon': Icons.edit_note_outlined,     'label': 'Edit profile information', 'value': ''},
-    {'icon': Icons.notifications_outlined, 'label': 'Notifications',            'value': 'ON'},
-    {'icon': Icons.translate_outlined,     'label': 'Language',                 'value': 'English'},
-    {'icon': Icons.translate_outlined,     'label': 'Preferred Subjects',       'value': 'Computer'},
-    {'icon': Icons.translate_outlined,     'label': 'Learning Mode',            'value': 'Normal'},
-  ];
+  // ── Dialogs ────────────────────────────────────────────────────────────────
+
+  void _showLanguageDialog() {
+    final options = ['English', 'ภาษาไทย'];
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Language',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((lang) {
+            return RadioListTile<String>(
+              title: Text(lang),
+              value: lang,
+              groupValue: _language,
+              activeColor: primaryGreen,
+              onChanged: (val) {
+                setState(() => _language = val!);
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showSubjectDialog() {
+    final options = ['Computer', 'Math', 'English', 'Science', 'Physics'];
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Preferred Subjects',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((subj) {
+            return RadioListTile<String>(
+              title: Text(subj),
+              value: subj,
+              groupValue: _preferredSubject,
+              activeColor: primaryGreen,
+              onChanged: (val) {
+                setState(() => _preferredSubject = val!);
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showLearningModeDialog() {
+    final options = ['Normal', 'Intensive', 'Relaxed'];
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Learning Mode',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((mode) {
+            return RadioListTile<String>(
+              title: Text(mode),
+              value: mode,
+              groupValue: _learningMode,
+              activeColor: primaryGreen,
+              onChanged: (val) {
+                setState(() => _learningMode = val!);
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -104,15 +184,20 @@ class ProfilePage extends StatelessWidget {
   }
 
   Widget _buildStatsRow() {
+    final stats = [
+      {'icon': Icons.bolt,      'value': '55', 'label': 'Quizzes'},
+      {'icon': Icons.bar_chart, 'value': 'A',  'label': 'GRADE'},
+    ];
     return Row(
-      children: _stats.asMap().entries.map((e) {
+      children: stats.asMap().entries.map((e) {
         final i = e.key;
         final s = e.value;
         return Expanded(
           child: Padding(
             padding: EdgeInsets.only(right: i == 0 ? 10 : 0),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
@@ -125,19 +210,14 @@ class ProfilePage extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        s['value'] as String,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      Text(
-                        s['label'] as String,
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.black45),
-                      ),
+                      Text(s['value'] as String,
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87)),
+                      Text(s['label'] as String,
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.black45)),
                     ],
                   ),
                 ],
@@ -176,19 +256,14 @@ class ProfilePage extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      m['label'] as String,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    Text(
-                      '$pct% Correct',
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.black45),
-                    ),
+                    Text(m['label'] as String,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87)),
+                    Text('$pct% Correct',
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.black45)),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -216,42 +291,110 @@ class ProfilePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
-        children: _settings.asMap().entries.map((e) {
-          final i = e.key;
-          final s = e.value;
-          final isLast = i == _settings.length - 1;
-          return Column(
-            children: [
-              ListTile(
-                dense: true,
-                leading: Icon(s['icon'] as IconData,
-                    color: primaryGreen, size: 20),
-                title: Text(
-                  s['label'] as String,
-                  style: const TextStyle(fontSize: 13, color: Colors.black87),
-                ),
-                trailing: (s['value'] as String).isNotEmpty
-                    ? Text(
-                        s['value'] as String,
-                        style: const TextStyle(
-                            fontSize: 12, color: primaryGreen),
-                      )
-                    : null,
-                onTap: () {},
-              ),
-              if (!isLast)
-                Divider(
-                  height: 1,
-                  color: Colors.grey.shade200,
-                  indent: 16,
-                  endIndent: 16,
-                ),
-            ],
-          );
-        }).toList(),
+        children: [
+          // Edit profile
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.edit_note_outlined,
+                color: primaryGreen, size: 20),
+            title: const Text('Edit profile information',
+                style: TextStyle(fontSize: 13, color: Colors.black87)),
+            trailing: const Icon(Icons.chevron_right,
+                color: Colors.black38, size: 18),
+            onTap: () {},
+          ),
+          _divider(),
+
+          // Notifications toggle
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.notifications_outlined,
+                color: primaryGreen, size: 20),
+            title: const Text('Notifications',
+                style: TextStyle(fontSize: 13, color: Colors.black87)),
+            trailing: Switch(
+              value: _notifications,
+              onChanged: (val) => setState(() => _notifications = val),
+              activeColor: primaryGreen,
+            ),
+          ),
+          _divider(),
+
+          // Language
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.language_outlined,
+                color: primaryGreen, size: 20),
+            title: const Text('Language',
+                style: TextStyle(fontSize: 13, color: Colors.black87)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_language,
+                    style: const TextStyle(
+                        fontSize: 12, color: primaryGreen)),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right,
+                    color: Colors.black38, size: 18),
+              ],
+            ),
+            onTap: _showLanguageDialog,
+          ),
+          _divider(),
+
+          // Preferred Subjects
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.school_outlined,
+                color: primaryGreen, size: 20),
+            title: const Text('Preferred Subjects',
+                style: TextStyle(fontSize: 13, color: Colors.black87)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_preferredSubject,
+                    style: const TextStyle(
+                        fontSize: 12, color: primaryGreen)),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right,
+                    color: Colors.black38, size: 18),
+              ],
+            ),
+            onTap: _showSubjectDialog,
+          ),
+          _divider(),
+
+          // Learning Mode
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.psychology_outlined,
+                color: primaryGreen, size: 20),
+            title: const Text('Learning Mode',
+                style: TextStyle(fontSize: 13, color: Colors.black87)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_learningMode,
+                    style: const TextStyle(
+                        fontSize: 12, color: primaryGreen)),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right,
+                    color: Colors.black38, size: 18),
+              ],
+            ),
+            onTap: _showLearningModeDialog,
+          ),
+        ],
       ),
     );
   }
+
+  Widget _divider() => Divider(
+        height: 1,
+        color: Colors.grey.shade200,
+        indent: 16,
+        endIndent: 16,
+      );
 
   Widget _buildContactCard(BuildContext context) {
     return Container(
@@ -263,10 +406,10 @@ class ProfilePage extends StatelessWidget {
         dense: true,
         leading: const Icon(Icons.chat_bubble_outline,
             color: primaryGreen, size: 20),
-        title: const Text(
-          'Contact us',
-          style: TextStyle(fontSize: 13, color: Colors.black87),
-        ),
+        title: const Text('Contact us',
+            style: TextStyle(fontSize: 13, color: Colors.black87)),
+        trailing: const Icon(Icons.chevron_right,
+            color: Colors.black38, size: 18),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ContactUsPage()),
@@ -302,15 +445,18 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
+  // ── Bottom Nav ─────────────────────────────────────────────────────────────
+
   Widget _buildBottomNavBar(BuildContext context) {
     final items = [
-      {'icon': Icons.home_outlined,   'activeIcon': Icons.home,   'label': 'Home',      'route': '/home'},
-      {'icon': Icons.quiz_outlined,   'activeIcon': Icons.quiz,   'label': 'Quiz',      'route': '/quiz'},
-      {'icon': Icons.bar_chart_outlined,'activeIcon': Icons.bar_chart,'label': 'Analytics','route': '/analytics'},
-      {'icon': Icons.person_outline,  'activeIcon': Icons.person, 'label': 'Profile',   'route': ''},
+      {'icon': Icons.home_outlined,      'activeIcon': Icons.home,      'label': 'Home',      'route': '/home'},
+      {'icon': Icons.quiz_outlined,      'activeIcon': Icons.quiz,      'label': 'Quiz',      'route': '/quiz'},
+      {'icon': Icons.bar_chart_outlined, 'activeIcon': Icons.bar_chart, 'label': 'Analytics', 'route': '/analytics'},
+      {'icon': Icons.person_outline,     'activeIcon': Icons.person,    'label': 'Profile',   'route': ''},
     ];
+
     return Container(
-      color: const Color(0xFF1DBA78),
+      color: primaryGreen,
       child: SafeArea(
         top: false,
         child: Padding(
