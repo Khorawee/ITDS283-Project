@@ -12,6 +12,7 @@
 .env
 .env.local
 .env.production
+leranflow-moblie-firebase-adminsdk-fbsvc-e916a95fd9.json
 
 # serviceAccountKey.json = Admin key ของ Firebase
 # ถ้าหลุดคนอื่นอ่าน/แก้/ลบข้อมูลทั้งระบบได้เลย

@@ -1,3 +1,14 @@
+import sys
+import os
+
+# เพิ่ม path ให้ Python หาไฟล์ใน subfolders เจอ
+BASE_DIR = os.path.dirname(__file__)
+sys.path.insert(0, BASE_DIR)
+sys.path.insert(0, os.path.join(BASE_DIR, 'config'))
+sys.path.insert(0, os.path.join(BASE_DIR, 'routes'))
+sys.path.insert(0, os.path.join(BASE_DIR, 'services'))
+sys.path.insert(0, os.path.join(BASE_DIR, 'middleware'))
+
 from flask import Flask
 from flask_cors import CORS
 from firebase_config import init_firebase

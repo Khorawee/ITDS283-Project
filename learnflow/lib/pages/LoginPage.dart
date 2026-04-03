@@ -1,7 +1,11 @@
+// lib/pages/LoginPage.dart  [UPDATED — เชื่อม API]
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../services/auth_service.dart';
+import '../services/api_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -29,41 +33,21 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (_emailController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
-      );
+      _showSnack('Please fill in all fields');
       return;
     }
-
     setState(() => _isLoading = true);
-
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email:    _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      Navigator.pushReplacementNamed(context, '/home');
+      // Email login ไม่ต้อง sync API (สร้างตอน register แล้ว)
+      if (mounted) Navigator.pushReplacementNamed(context, '/home');
     } on FirebaseAuthException catch (e) {
-      String message;
-      switch (e.code) {
-        case 'user-not-found':
-          message = 'No account found for this email.';
-          break;
-        case 'wrong-password':
-          message = 'Incorrect password. Please try again.';
-          break;
-        case 'invalid-email':
-          message = 'Invalid email address.';
-          break;
-        case 'user-disabled':
-          message = 'This account has been disabled.';
-          break;
-        default:
-          message = e.message ?? 'Login failed. Please try again.';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      _showSnack(_firebaseMessage(e.code, e.message));
+    } catch (e) {
+      _showSnack('Login failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -72,38 +56,51 @@ class _LoginPageState extends State<LoginPage> {
   // ── Google Sign-In ────────────────────────────────────────────────────────
   Future<void> _loginWithGoogle() async {
     setState(() => _isLoading = true);
-
     try {
+      UserCredential cred;
       if (kIsWeb) {
-        // Web: ใช้ signInWithPopup
-        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
-        googleProvider.addScope('email');
-        await FirebaseAuth.instance.signInWithPopup(googleProvider);
+        final provider = GoogleAuthProvider()..addScope('email');
+        cred = await FirebaseAuth.instance.signInWithPopup(provider);
       } else {
-        // Mobile: ใช้ google_sign_in
-        final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-        if (googleUser == null) {
-          setState(() => _isLoading = false);
-          return;
-        }
-        final GoogleSignInAuthentication googleAuth =
-            await googleUser.authentication;
-        final AuthCredential credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken:     googleAuth.idToken,
+        final googleUser = await GoogleSignIn().signIn();
+        if (googleUser == null) { setState(() => _isLoading = false); return; }
+        final googleAuth = await googleUser.authentication;
+        cred = await FirebaseAuth.instance.signInWithCredential(
+          GoogleAuthProvider.credential(
+            accessToken: googleAuth.accessToken,
+            idToken:     googleAuth.idToken,
+          ),
         );
-        await FirebaseAuth.instance.signInWithCredential(credential);
       }
+      // Sync user → MySQL
+      final displayName = cred.user?.displayName ?? '';
+      await AuthService.syncGoogleLogin(displayName);
 
-      Navigator.pushReplacementNamed(context, '/home');
+      if (mounted) Navigator.pushReplacementNamed(context, '/home');
+    } on ApiException catch (e) {
+      // API error ไม่ block การเข้าแอป (user อยู่ใน Firebase แล้ว)
+      debugPrint('API sync warning: ${e.message}');
+      if (mounted) Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Google sign-in failed. Please try again.')),
-      );
+      _showSnack('Google sign-in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _firebaseMessage(String code, String? msg) {
+    switch (code) {
+      case 'user-not-found':   return 'No account found for this email.';
+      case 'wrong-password':   return 'Incorrect password.';
+      case 'invalid-email':    return 'Invalid email address.';
+      case 'user-disabled':    return 'This account has been disabled.';
+      default:                 return msg ?? 'Login failed. Please try again.';
+    }
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -116,268 +113,163 @@ class _LoginPageState extends State<LoginPage> {
             // ── Header ──────────────────────────────────────────────────────
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.only(
-                top: 60, left: 24, right: 24, bottom: 30,
-              ),
+              padding: const EdgeInsets.only(top: 60, left: 24, right: 24, bottom: 30),
               decoration: const BoxDecoration(color: Color(0xFF1DBA78)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Image.asset(
-                    'assets/images/LeranFlow_logo.png',
-                    width: 80,
-                    height: 80,
-                  ),
+                  Image.asset('assets/images/LeranFlow_logo.png', width: 80, height: 80),
                   const SizedBox(height: 6),
-                  const Text(
-                    "LearnFlow",
-                    style: TextStyle(color: Colors.white, fontSize: 14),
-                  ),
+                  const Text('LearnFlow', style: TextStyle(color: Colors.white, fontSize: 14)),
                   const SizedBox(height: 20),
-                  const Text(
-                    "Get Started now",
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  const Text('Get Started now',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
                   const SizedBox(height: 6),
-                  const Text(
-                    "Create an account or log in to explore about our app",
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
+                  const Text('Create an account or log in to explore about our app',
+                      style: TextStyle(color: Colors.white70, fontSize: 13)),
                 ],
               ),
             ),
 
             // ── Form ─────────────────────────────────────────────────────────
             Container(
-              width: double.infinity,
               color: Colors.white,
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tab buttons
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            elevation: 1,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            backgroundColor: Colors.white, elevation: 1,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           onPressed: () {},
-                          child: const Text(
-                            "Log In",
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: const Text('Log In',
+                              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[200],
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            backgroundColor: Colors.grey[200], elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          onPressed: () =>
-                              Navigator.pushNamed(context, '/register'),
-                          child: const Text(
-                            "Sign Up",
-                            style: TextStyle(color: Colors.black54),
-                          ),
+                          onPressed: () => Navigator.pushNamed(context, '/register'),
+                          child: const Text('Sign Up', style: TextStyle(color: Colors.black54)),
                         ),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Email
-                  const Text("Email",
-                      style: TextStyle(fontSize: 14, color: Colors.black87)),
+                  const Text('Email', style: TextStyle(fontSize: 14, color: Colors.black87)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _inputDecoration(hint: "example@gmail.com"),
+                    decoration: _inputDecoration(hint: 'example@gmail.com'),
                   ),
-
                   const SizedBox(height: 16),
-
-                  // Password
-                  const Text("Password",
-                      style: TextStyle(fontSize: 14, color: Colors.black87)),
+                  const Text('Password', style: TextStyle(fontSize: 14, color: Colors.black87)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    decoration: _inputDecoration(hint: "••••••••").copyWith(
+                    decoration: _inputDecoration(hint: '••••••••').copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: Colors.grey,
-                          size: 20,
+                          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          color: Colors.grey, size: 20,
                         ),
-                        onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Remember me + Forgot Password
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
                           SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 20, height: 20,
                             child: Checkbox(
                               value: _rememberMe,
-                              onChanged: (val) =>
-                                  setState(() => _rememberMe = val ?? false),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4)),
+                              onChanged: (val) => setState(() => _rememberMe = val ?? false),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                               side: BorderSide(color: Colors.grey[400]!),
                               activeColor: const Color(0xFF1DBA78),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Text("Remember me",
-                              style: TextStyle(
-                                  fontSize: 13, color: Colors.black54)),
+                          const Text('Remember me', style: TextStyle(fontSize: 13, color: Colors.black54)),
                         ],
                       ),
                       TextButton(
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/forgot-password'),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text(
-                          "Forgot Password ?",
-                          style: TextStyle(
-                              fontSize: 13, color: Color(0xFF1DBA78)),
-                        ),
+                        onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
+                        style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
+                        child: const Text('Forgot Password ?',
+                            style: TextStyle(fontSize: 13, color: Color(0xFF1DBA78))),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Log In button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1DBA78),
                         padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
                       onPressed: _isLoading ? null : _login,
                       child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              "Log In",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                          ? const SizedBox(width: 20, height: 20,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Log In',
+                              style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600)),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Or divider
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.grey[300])),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text("Or",
-                            style: TextStyle(
-                                color: Colors.grey[500], fontSize: 13)),
-                      ),
-                      Expanded(child: Divider(color: Colors.grey[300])),
-                    ],
-                  ),
-
+                  Row(children: [
+                    Expanded(child: Divider(color: Colors.grey[300])),
+                    Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('Or', style: TextStyle(color: Colors.grey[500], fontSize: 13))),
+                    Expanded(child: Divider(color: Colors.grey[300])),
+                  ]),
                   const SizedBox(height: 16),
-
-                  // Continue with Google
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         side: BorderSide(color: Colors.grey[300]!),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: _isLoading ? null : _loginWithGoogle,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: 22,
-                            height: 22,
+                            width: 22, height: 22,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.grey[300]!),
                             ),
                             child: const Center(
-                              child: Text(
-                                "G",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: Color(0xFF4285F4),
-                                ),
-                              ),
+                              child: Text('G',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF4285F4))),
                             ),
                           ),
                           const SizedBox(width: 10),
-                          const Text(
-                            "Continue with Google",
-                            style: TextStyle(
-                                color: Colors.black87, fontSize: 14),
-                          ),
+                          const Text('Continue with Google', style: TextStyle(color: Colors.black87, fontSize: 14)),
                         ],
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
                 ],
               ),
@@ -388,26 +280,13 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  InputDecoration _inputDecoration({required String hint}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Colors.black45),
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFF1DBA78)),
-      ),
-    );
-  }
+  InputDecoration _inputDecoration({required String hint}) => InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: Colors.black45),
+    filled: true, fillColor: Colors.white,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[300]!)),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[300]!)),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1DBA78))),
+  );
 }

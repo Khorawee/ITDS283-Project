@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from db_config import get_connection
 from auth_middleware import require_auth
-from ai_service import calculate_understanding, calculate_topic_mastery, get_level
+from ai_service import calculate_understanding
 
 quiz_bp = Blueprint('quiz', __name__)
 
@@ -17,7 +17,7 @@ def get_quizzes():
     try:
         with conn.cursor() as cur:
             cur.execute('''
-                SELECT q.quiz_id, q.title, q.level, q.total_questions,
+                SELECT q.quiz_id, q.title, q.level, q.total_questions,  -- FIX: total_questions
                        s.subject_name
                 FROM quizzes q
                 JOIN subjects s ON q.subject_id = s.subject_id
@@ -40,9 +40,9 @@ def get_quiz_detail(quiz_id):
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            # ดึงข้อมูล Quiz
             cur.execute('''
-                SELECT q.*, s.subject_name
+                SELECT q.quiz_id, q.title, q.level, q.total_questions,  -- FIX: total_questions
+                       s.subject_name
                 FROM quizzes q
                 JOIN subjects s ON q.subject_id = s.subject_id
                 WHERE q.quiz_id = %s
@@ -52,7 +52,6 @@ def get_quiz_detail(quiz_id):
             if not quiz:
                 return jsonify({'error': 'Quiz not found'}), 404
 
-            # ดึงคำถามทั้งหมด
             cur.execute('''
                 SELECT question_id, topic, question_text,
                        correct_choice, explanation, expected_time
@@ -62,7 +61,6 @@ def get_quiz_detail(quiz_id):
             ''', (quiz_id,))
             questions = cur.fetchall()
 
-            # ดึงตัวเลือกของแต่ละข้อ
             for q in questions:
                 cur.execute('''
                     SELECT choice_id, choice_label, choice_text
@@ -85,7 +83,6 @@ def submit_quiz():
     POST /api/quiz/submit
     รับคำตอบทั้งหมดหลังทำ Quiz เสร็จ
     คำนวณ Accuracy, Speed, Understanding แล้วบันทึกลง DB
-    อัปเดต topic_analysis และ progress ด้วย
 
     Body JSON:
     {
@@ -112,7 +109,6 @@ def submit_quiz():
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            # ดึง user_id จาก firebase_uid
             cur.execute(
                 'SELECT user_id FROM users WHERE firebase_uid = %s',
                 (g.firebase_uid,)
@@ -122,7 +118,6 @@ def submit_quiz():
                 return jsonify({'error': 'User not found'}), 404
             user_id = user['user_id']
 
-            # ดึงข้อมูลคำถามทั้งหมดของ quiz นี้
             cur.execute('''
                 SELECT q.question_id, q.correct_choice, q.expected_time,
                        q.quiz_id, qz.subject_id
@@ -132,13 +127,11 @@ def submit_quiz():
             ''', (quiz_id,))
             questions = {q['question_id']: q for q in cur.fetchall()}
 
-            # คำนวณคะแนน
             score = 0
             total = len(answers)
             subject_id = None
             understanding_scores = []
 
-            # สร้าง quiz_attempt
             cur.execute('''
                 INSERT INTO quiz_attempts
                 (user_id, quiz_id, score, total, time_spent)
@@ -146,7 +139,6 @@ def submit_quiz():
             ''', (user_id, quiz_id, 0, total, time_spent))
             attempt_id = cur.lastrowid
 
-            # บันทึกคำตอบแต่ละข้อ
             for ans in answers:
                 qid           = ans['question_id']
                 selected      = ans['selected_choice']
@@ -164,13 +156,11 @@ def submit_quiz():
                 if is_correct:
                     score += 1
 
-                # คำนวณ Understanding ของข้อนี้
                 accuracy      = 1.0 if is_correct else 0.0
                 speed         = min(1.0, expected_t / max(response_time, 1))
                 understanding = calculate_understanding(accuracy, speed)
                 understanding_scores.append(understanding)
 
-                # บันทึก user_answer
                 cur.execute('''
                     INSERT INTO user_answers
                     (attempt_id, question_id, selected_choice,
@@ -179,13 +169,11 @@ def submit_quiz():
                 ''', (attempt_id, qid, selected,
                       is_correct, response_time, attempt_count))
 
-            # อัปเดตคะแนนใน quiz_attempt
             cur.execute(
                 'UPDATE quiz_attempts SET score = %s WHERE attempt_id = %s',
                 (score, attempt_id)
             )
 
-            # คำนวณ Topic Mastery และอัปเดต topic_analysis
             if subject_id and understanding_scores:
                 from progress_service import update_topic_analysis, update_progress
                 update_topic_analysis(cur, user_id, subject_id,
