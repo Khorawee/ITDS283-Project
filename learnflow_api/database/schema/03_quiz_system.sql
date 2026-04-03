@@ -1,3 +1,4 @@
+USE learnflow;
 -- 03_quiz_system.sql  [FIXED]
 -- แก้ไข: sudject_id → subject_id, total_question → total_questions
 
