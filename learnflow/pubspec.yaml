@@ -21,7 +21,7 @@ dependencies:
   firebase_auth: ^5.6.0
   google_sign_in: ^6.2.2
 
-  # 🌐 HTTP
+  # 🌐 HTTP — เพิ่มสำหรับเรียก LearnFlow API
   http: ^1.2.0
 
 dev_dependencies:
@@ -38,3 +38,7 @@ flutter:
     - assets/images/Img_Onboarding.webp
     - assets/images/Img_Onboarding2.webp
     - assets/images/Img_Onboarding3.webp
+    - assets/images/math.png
+    - assets/images/Eng.png
+    - assets/images/dev1.png
+    - assets/images/dev2.png

@@ -45,7 +45,10 @@ class MyApp extends StatelessWidget {
         '/detail-basic-math': (context) => const DetailBasicMathPage(),
         '/basic-math':        (context) => const BasicMathPage(),
         '/result':            (context) => const ResultPage(),
-        '/review-answer':     (context) => const ReviewAnswerPage(),
+        '/review-answer': (context) {
+          final attemptId = ModalRoute.of(context)!.settings.arguments as int;
+          return ReviewAnswerPage(attemptId: attemptId);
+          },
         '/analytics':         (context) => AnalyticsScreen(),
         '/profile':           (context) => const ProfilePage(),
         '/reminder':          (context) => const ReminderPage(),

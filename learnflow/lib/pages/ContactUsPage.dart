@@ -1,23 +1,25 @@
+// lib/pages/ContactUsPage.dart  [UPDATED — ใส่รูป dev1.png / dev2.png]
+
 import 'package:flutter/material.dart';
 
 class ContactUsPage extends StatelessWidget {
   const ContactUsPage({super.key});
 
   static const Color primaryGreen = Color(0xFF1DBA78);
-  static const Color cardGreen = Color(0xFF81E3AB);
+  static const Color cardGreen    = Color(0xFF81E3AB);
 
   final List<Map<String, dynamic>> _developers = const [
     {
       'name':      'Khorawee Suwattanaphan',
       'role':      'Developer',
-      'image':     '', // ใส่ path รูปจริงตอนมี assets เช่น 'assets/images/dev1.jpg'
+      'image':     'assets/images/dev1.png',
       'instagram': 'ffiw_plzjkz',
       'email':     'khorawee.suw@student.mahiidol.edu',
     },
     {
       'name':      'Watcharin Wangsop',
       'role':      'Developer',
-      'image':     '',
+      'image':     'assets/images/dev2.png',
       'instagram': 'kvnd_12',
       'email':     'watcharin.wag@student.mahiidol.edu',
     },
@@ -57,7 +59,7 @@ class ContactUsPage extends StatelessWidget {
   Widget _buildDevCard(Map<String, dynamic> dev) {
     return Column(
       children: [
-        // Avatar
+        // Avatar — แสดงรูป dev1.png / dev2.png
         Container(
           width: 110,
           height: 130,
@@ -65,15 +67,15 @@ class ContactUsPage extends StatelessWidget {
             color: cardGreen,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: dev['image'] != ''
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    dev['image'] as String,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              : const Icon(Icons.person, size: 60, color: primaryGreen),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset(
+              dev['image'] as String,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.person, size: 60, color: primaryGreen),
+            ),
+          ),
         ),
 
         const SizedBox(height: 12),
