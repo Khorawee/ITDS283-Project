@@ -1,5 +1,8 @@
+// lib/pages/SplashScreen.dart  [FIXED — ตรวจ Firebase session ก่อน navigate]
+
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -31,12 +34,24 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _logoController.forward();
-    _navigateToOnboarding();
+    _decideNavigation();
   }
 
-  void _navigateToOnboarding() async {
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) {
+  // ── ตรวจสอบ Firebase session แล้วตัดสินใจว่าจะไปหน้าไหน ──────────────────
+  Future<void> _decideNavigation() async {
+    // รอ animation logo เสร็จก่อน (อย่างน้อย 2 วินาที)
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    // ตรวจสอบว่ามี user login อยู่ใน Firebase หรือไม่
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser != null) {
+      // ✅ มี session อยู่ → ข้ามหน้า login/onboarding ไปที่ home เลย
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      // ❌ ไม่มี session → ไป onboarding (ครั้งแรก) หรือ login
       Navigator.pushReplacementNamed(context, '/onboarding');
     }
   }
@@ -72,17 +87,13 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Logo
                   Image.asset(
                     'assets/images/LeranFlow_logo.png',
                     width: 220,
                     height: 220,
                     fit: BoxFit.contain,
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Gradient Spinner
                   const SizedBox(
                     width: 52,
                     height: 52,
@@ -97,6 +108,8 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 }
+
+// ── Spinner (ไม่เปลี่ยน) ──────────────────────────────────────────────────────
 
 class _GradientSpinner extends StatefulWidget {
   const _GradientSpinner();
@@ -144,7 +157,7 @@ class _GradientSpinnerPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 6;
-    final rect = Rect.fromCircle(center: center, radius: radius);
+    final rect   = Rect.fromCircle(center: center, radius: radius);
 
     final gradient = SweepGradient(
       startAngle: 0,
@@ -163,8 +176,8 @@ class _GradientSpinnerPainter extends CustomPainter {
     );
 
     final paint = Paint()
-      ..shader = gradient.createShader(rect)
-      ..style = PaintingStyle.stroke
+      ..shader    = gradient.createShader(rect)
+      ..style     = PaintingStyle.stroke
       ..strokeWidth = 8
       ..strokeCap = StrokeCap.butt;
 

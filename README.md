@@ -1,146 +1,178 @@
-# ITDS283-Project
-LearnFlow - Adaptive Learning Mobile App
 # LearnFlow
 
-Flutter App + Flask API + MySQL + Firebase Auth
+Flutter + Flask + MySQL + Firebase Auth
 
 ---
 
-## สารบัญ
+## โครงสร้างไฟล์
 
-1. [ภาพรวมระบบ](#1-ภาพรวมระบบ)
-2. [Bug Fixes ที่แก้ไขแล้ว](#2-bug-fixes-ที่แก้ไขแล้ว)
-3. [ตั้งค่า Database — Phase 1](#3-ตั้งค่า-database--phase-1)
-4. [ตั้งค่า Flask API — Phase 2](#4-ตั้งค่า-flask-api--phase-2)
-5. [ตั้งค่า Flutter App — Phase 3](#5-ตั้งค่า-flutter-app--phase-3)
-6. [API Endpoints ทั้งหมด](#6-api-endpoints-ทั้งหมด)
-7. [Flutter Services Layer](#7-flutter-services-layer)
-8. [Flutter Pages ที่อัปเดต](#8-flutter-pages-ที่อัปเดต)
-9. [AI Logic](#9-ai-logic)
-10. [Troubleshooting](#10-troubleshooting)
-11. [โครงสร้างไฟล์](#11-โครงสร้างไฟล์)
-
----
-
-## 1. ภาพรวมระบบ
-
-| Component | Technology | หน้าที่ |
-|---|---|---|
-| Flutter App | Dart / Flutter | UI และ Mobile Application |
-| Flask API | Python / Flask | Backend REST API |
-| Database | MySQL | เก็บข้อมูล users, quizzes, analytics |
-| Auth | Firebase Auth | Login / Register / Token verification |
-
-### Auth Flow
-
-ทุก API call ใช้ Firebase ID Token เป็น authentication โดยอัตโนมัติ
+### API (`learnflow_api/`)
 
 ```
-Flutter login
-  → Firebase Auth
-  → getIdToken()
-  → Authorization: Bearer <token>
-  → Flask @require_auth → verify_id_token()
-  → MySQL query
-  → Response
+learnflow_api/
+├── app.py                        # entry point สร้าง Flask app และลงทะเบียน blueprints
+├── requirements.txt              # Python dependencies
+├── .env.example                  # ตัวอย่างค่า config (copy เป็น .env)
+│
+├── config/
+│   ├── db_config.py              # สร้าง MySQL connection จาก .env
+│   ├── firebase_config.py        # init Firebase Admin SDK
+│   └── serviceAccountKey.json   # ⚠️ Firebase key — ไม่รวมใน git
+│
+├── middleware/
+│   └── auth_middleware.py        # @require_auth ตรวจ Firebase token ทุก request
+│
+├── routes/
+│   ├── auth.py                   # POST /api/auth/login, /api/auth/register
+│   ├── quiz.py                   # GET /api/quizzes, /api/quiz/<id>, /api/quiz/<id>/attempted
+│   │                             # POST /api/quiz/submit
+│   ├── result.py                 # GET /api/result/<attempt_id>, /api/review/<attempt_id>
+│   ├── analysis.py               # GET /api/analysis, /api/dashboard
+│   ├── recommendation.py         # GET /api/recommendations
+│   └── profile.py                # GET /api/profile
+│
+├── services/
+│   ├── ai_service.py             # คำนวณ Understanding, Mastery, Level, Action
+│   └── progress_service.py       # update topic_analysis และ progress รายวัน
+│
+└── database/
+    ├── init.sql                  # รัน schema ทั้งหมดในคำสั่งเดียว
+    ├── schema/
+    │   ├── 01_users.sql          # table users (firebase_uid, email, name)
+    │   ├── 02_subjects.sql       # table subjects (Mathematics, English, ...)
+    │   ├── 03_quiz_system.sql    # table quizzes, questions, choices
+    │   ├── 04_quiz_activity.sql  # table quiz_attempts, user_answers
+    │   ├── 05_ai_analysis.sql    # table topic_analysis, recommendations
+    │   └── 06_progress.sql       # table progress (avg_understanding รายวัน)
+    └── seeds/
+        ├── seed_subjects.sql     # ข้อมูล subjects เริ่มต้น
+        ├── seed_quizzes.sql      # ข้อมูล quizzes เริ่มต้น
+        └── seed_questions.py     # สร้างคำถามและตัวเลือกลง DB
+```
+
+### Flutter (`lib/`)
+
+```
+lib/
+├── main.dart                     # entry point, Firebase init, Notification init,
+│                                 # global locale state (LearnFlowApp.setLocale)
+├── firebase_options.dart         # config Firebase สำหรับแต่ละ platform
+│
+├── services/
+│   ├── api_service.dart          # HTTP client กลาง แนบ Firebase token ทุก request
+│   ├── auth_service.dart         # sync user หลัง login/register → MySQL
+│   ├── quiz_service.dart         # getQuizzes, getQuizDetail, submitQuiz
+│   ├── result_service.dart       # getResult, getReview, hasAttempted
+│   ├── analytics_service.dart    # getDashboard, getAnalysis
+│   ├── profile_service.dart      # getProfile
+│   ├── recommendation_service.dart  # getRecommendations
+│   └── notification_service.dart    # local notification (Android/iOS เท่านั้น)
+│                                     # Windows/Web → skip อัตโนมัติ
+└── pages/
+    ├── SplashScreen.dart         # หน้า loading → onboarding
+    ├── OnboardingScreen.dart     # สไลด์แนะนำ app 3 หน้า
+    ├── LoginPage.dart            # login email/password และ Google → sync API
+    ├── RegisterPage.dart         # register email → Firebase + sync API
+    ├── ForgotPasswordPage.dart   # ส่ง reset password email
+    ├── HomePage.dart             # summary stats + recommended quizzes จาก API
+    ├── QuizPage.dart             # รายการ quiz ทั้งหมด + search + filter
+    ├── DetailBasicMathPage.dart  # รายละเอียด quiz ซ่อนปุ่ม Retake ถ้ายังไม่เคยทำ
+    ├── BasicMathPage.dart        # ทำ quiz โหลดคำถามจาก API + submit คำตอบ
+    ├── ResultPage.dart           # ผลคะแนน, grade, badge จาก API
+    ├── ReviewAnswerPage.dart     # เฉลยทุกข้อจาก API
+    ├── Analyticspage.dart        # กราฟ Bar/Line/Radar จาก API
+    ├── Profilepage.dart          # ข้อมูล user, เปลี่ยนภาษา (EN/TH), toggle notification
+    ├── Reminderpage.dart         # รายการการแจ้งเตือน
+    └── ContactUsPage.dart        # ข้อมูลติดต่อผู้พัฒนา
 ```
 
 ---
 
-## 2. Bug Fixes ที่แก้ไขแล้ว
+## ขั้นตอนการรัน
 
-| ไฟล์ | Bug เดิม | แก้เป็น |
-|---|---|---|
-| `database/schema/03_quiz_system.sql` | `sudject_id` (typo) | `subject_id` |
-| `database/schema/03_quiz_system.sql` | `total_question` | `total_questions` |
-| `database/schema/04_quiz_activity.sql` | `DEFAULT` ไม่มีค่า | `DEFAULT 0` |
-| `database/schema/04_quiz_activity.sql` | ขาด comma ใน FOREIGN KEY | เพิ่ม comma |
-| `routes/quiz.py` | column name ไม่ตรง schema | แก้ให้ตรงกัน |
+### Phase 1 — ตั้งค่า Database
 
----
+เปิด **MySQL Workbench** → connect → เปิดไฟล์ทีละไฟล์ด้วย File → Open SQL Script → Execute ตามลำดับ
 
-## 3. ตั้งค่า Database — Phase 1
+```
+01_users.sql → 02_subjects.sql → 03_quiz_system.sql
+→ 04_quiz_activity.sql → 05_ai_analysis.sql → 06_progress.sql
+```
 
-### 3.1 สร้าง Database และ Tables
+> ⚠️ ต้องรันตามลำดับ 01 → 06 เพราะ Foreign Key อ้างอิง table ที่สร้างก่อน
+
+จากนั้นใส่ข้อมูลเริ่มต้น (เปิดใน Workbench แล้ว Execute):
+
+```
+seed_subjects.sql → seed_quizzes.sql
+```
+
+แล้วรัน seed_questions ใน terminal:
+
 ```bash
-วิธีที่ 1 — MySQL Workbench (แนะนำ ง่ายสุด)
-
-เปิด MySQL Workbench แล้ว connect เข้า server
-สร้าง database ก่อน — คลิกขวาที่ SCHEMAS → Create Schema → ตั้งชื่อ learnflow → เลือก charset utf8mb4 → Apply
-เปิดไฟล์ schema ทีละไฟล์ด้วย File → Open SQL Script → เลือก 01_users.sql
-เลือก learnflow เป็น default schema (ดับเบิลคลิกที่ชื่อ schema ให้ตัวหนา)
-กด Execute (สายฟ้า ⚡) → ทำซ้ำกับไฟล์ 02–06 ตามลำดับ
-```
-
-> ⚠️ ต้องรันตามลำดับ 01 → 06 เสมอ เพราะ Foreign Key ต้องอ้างอิง table ที่สร้างก่อน
-
-```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS learnflow \
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-mysql -u root -p learnflow < database/schema/01_users.sql
-mysql -u root -p learnflow < database/schema/02_subjects.sql
-mysql -u root -p learnflow < database/schema/03_quiz_system.sql
-mysql -u root -p learnflow < database/schema/04_quiz_activity.sql
-mysql -u root -p learnflow < database/schema/05_ai_analysis.sql
-mysql -u root -p learnflow < database/schema/06_progress.sql
-```
-
-### 3.2 ใส่ข้อมูลเริ่มต้น (Seed data)
-
-> ⚠️ ต้องรันตามลำดับ seed_subjects → seed_quizzes → seed_questions เสมอ
-
-```bash
-mysql -u root -p learnflow < database/seeds/seed_subjects.sql
-mysql -u root -p learnflow < database/seeds/seed_quizzes.sql
 python database/seeds/seed_questions.py
 ```
 
 ---
 
-## 4. ตั้งค่า Flask API — Phase 2
+### Phase 2 — ตั้งค่า Flask API
 
-### 4.1 สร้าง Firebase Service Account Key
-
-Flask ต้องการ key นี้เพื่อ verify Firebase token จาก Flutter
+**ขั้นที่ 1** — สร้าง Firebase Service Account Key
 
 1. ไปที่ **Firebase Console → Project Settings → Service accounts**
 2. คลิก **Generate new private key**
 3. วางไฟล์ที่ได้ไว้ที่ `learnflow_api/config/serviceAccountKey.json`
 
-> ⚠️ อย่า commit ไฟล์นี้ขึ้น git เด็ดขาด — เพิ่มใน `.gitignore`
+> ⚠️ อย่า commit ไฟล์นี้ขึ้น git — เพิ่มใน `.gitignore`
 
-### 4.2 ตั้งค่าไฟล์ .env
+**ขั้นที่ 2** — สร้างไฟล์ `.env`
 
 ```bash
 cd learnflow_api
 cp .env.example .env
 ```
 
-แก้ไขค่าใน `.env` ให้ครบ:
+แก้ไขค่าใน `.env`:
 
 ```env
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=your_mysql_password   # ← ใส่รหัสผ่านจริง
+DB_PASSWORD=your_mysql_password
 DB_NAME=learnflow
 
 FIREBASE_CREDENTIALS=config/serviceAccountKey.json
 
 FLASK_ENV=development
-SECRET_KEY=any_random_string_here
+SECRET_KEY=your_secret_key
 ```
 
-### 4.3 ติดตั้ง dependencies และรัน API
+สร้าง `SECRET_KEY` แบบ random ด้วยคำสั่งนี้ใน terminal:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+จะได้ค่าออกมา เช่น:
+
+```
+a3f8c2d1e4b7a9f0c3d6e8b1a2c4d5e7f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4
+```
+
+copy ค่านั้นไปใส่ใน `.env`:
+
+```env
+SECRET_KEY=a3f8c2d1e4b7a9f0c3d6e8b1a2c4d5e7f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4
+```
+
+**ขั้นที่ 3** — ติดตั้งและรัน
 
 ```bash
 cd learnflow_api
 
-# สร้าง virtual environment (แนะนำ)
 python -m venv venv
-source venv/bin/activate       # macOS / Linux
-# venv\Scripts\activate        # Windows
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # macOS / Linux
 
 pip install -r requirements.txt
 
@@ -151,263 +183,45 @@ python app.py
 
 ---
 
-## 5. ตั้งค่า Flutter App — Phase 3
+### Phase 3 — ตั้งค่า Flutter App
 
-### 5.1 ตั้งค่า baseUrl ใน api_service.dart
+**ขั้นที่ 1** — ตั้งค่า baseUrl
 
-เปิดไฟล์ `lib/services/api_service.dart` แล้วเลือก URL ให้ตรงกับ device:
+เปิดไฟล์ `lib/services/api_service.dart` แล้วเปลี่ยน `baseUrl` ให้ตรงกับ device:
 
-| Device / Platform | baseUrl |
+| Device | baseUrl |
 |---|---|
 | Android Emulator | `http://10.0.2.2:5000` |
 | iOS Simulator / Web | `http://localhost:5000` |
-| Physical device (same WiFi) | `http://192.168.x.x:5000` |
-| Production Server | `https://your-domain.com` |
+| Physical device (WiFi เดียวกัน) | `http://192.168.x.x:5000` |
 
-```dart
-// lib/services/api_service.dart
-static const String baseUrl = 'http://10.0.2.2:5000';
-```
+> หา IP จริงด้วย `ipconfig` (Windows) หรือ `ifconfig` (Mac/Linux)
 
-> Physical device: รัน `ipconfig` (Windows) หรือ `ifconfig` (Mac/Linux) เพื่อดู IP จริง
+**ขั้นที่ 2** — อนุญาต HTTP บน Android (development เท่านั้น)
 
-### 5.2 อนุญาต HTTP สำหรับ Android
-
-> สำหรับ development เท่านั้น — production ใช้ HTTPS ไม่ต้องทำขั้นตอนนี้
-
-เปิดไฟล์ `android/app/src/main/AndroidManifest.xml` แล้วเพิ่ม attribute นี้ใน `<application>` tag:
+เปิด `android/app/src/main/AndroidManifest.xml` เพิ่มใน `<application>` tag:
 
 ```xml
 android:usesCleartextTraffic="true"
 ```
 
-### 5.3 รัน Flutter App
+**ขั้นที่ 3** — รัน Flutter
 
 ```bash
-cd learnflow_flutter
-
 flutter pub get
 flutter run
-
-# หรือเลือก device:
-flutter run -d android   # Android emulator
-flutter run -d ios       # iOS simulator
-flutter run -d chrome    # Web
 ```
 
 ---
 
-## 6. API Endpoints ทั้งหมด
+## Troubleshooting
 
-| Method | Endpoint | หน้า Flutter |
-|---|---|---|
-| POST | `/api/auth/login` | LoginPage (Google) |
-| POST | `/api/auth/register` | RegisterPage |
-| GET | `/api/quizzes` | QuizPage |
-| GET | `/api/quiz/<id>` | BasicMathPage |
-| POST | `/api/quiz/submit` | BasicMathPage (Finish) |
-| GET | `/api/result/<attempt_id>` | ResultPage |
-| GET | `/api/review/<attempt_id>` | ReviewAnswerPage |
-| GET | `/api/dashboard` | AnalyticsPage |
-| GET | `/api/profile` | ProfilePage, HomePage |
-| GET | `/api/recommendations` | HomePage |
-
-### ตัวอย่าง Request
-
-```bash
-# ทดสอบ API ด้วย curl (ต้องมี Firebase token จริง)
-curl -X GET http://localhost:5000/api/quizzes \
-  -H "Authorization: Bearer <firebase_id_token>"
-
-# ทดสอบว่า server ทำงาน
-curl http://localhost:5000/
-# ควรได้: {"message": "LearnFlow API is running"}
-```
-
-### ตัวอย่าง Submit Quiz
-
-```json
-POST /api/quiz/submit
-{
-  "quiz_id": 1,
-  "time_spent": 420,
-  "answers": [
-    {
-      "question_id": 1,
-      "selected_choice": "B",
-      "response_time": 28.5,
-      "attempt_count": 1
-    }
-  ]
-}
-```
-
----
-
-## 7. Flutter Services Layer
-
-ไฟล์ทั้งหมดอยู่ใน `lib/services/`
-
-| ไฟล์ | หน้าที่ |
+| ปัญหา | วิธีแก้ |
 |---|---|
-| `api_service.dart` | HTTP client กลาง — แนบ Firebase Token ทุก request อัตโนมัติ |
-| `auth_service.dart` | Sync Google/Email login → MySQL |
-| `quiz_service.dart` | `getQuizzes`, `getQuizDetail`, `submitQuiz` |
-| `result_service.dart` | `getResult`, `getReview` |
-| `analytics_service.dart` | `getDashboard`, `getAnalysis` |
-| `profile_service.dart` | `getProfile` |
-| `recommendation_service.dart` | `getRecommendations` |
-
-### ตัวอย่างการใช้งาน
-
-```dart
-// โหลด quiz list
-final quizzes = await QuizService.getQuizzes();
-
-// submit คำตอบ
-final result = await QuizService.submitQuiz(
-  quizId: 1,
-  timeSpent: 420,
-  answers: [...],
-);
-
-// โหลด dashboard analytics
-final dashboard = await AnalyticsService.getDashboard();
-```
-
----
-
-## 8. Flutter Pages ที่อัปเดต
-
-| หน้า | API ที่เชื่อม |
-|---|---|
-| `LoginPage` | `POST /api/auth/login` (Google sync) |
-| `RegisterPage` | `POST /api/auth/register` |
-| `QuizPage` | `GET /api/quizzes` |
-| `DetailBasicMathPage` | รับ/ส่ง `quiz_id` ผ่าน route arguments |
-| `BasicMathPage` | `GET /api/quiz/<id>`, `POST /api/quiz/submit` |
-| `ResultPage` | `GET /api/result/<attempt_id>` |
-| `ReviewAnswerPage` | `GET /api/review/<attempt_id>` |
-| `AnalyticsPage` | `GET /api/dashboard` (Bar/Line/Radar chart) |
-| `ProfilePage` | `GET /api/profile` + Firebase `signOut` |
-| `HomePage` | `GET /api/profile` + `GET /api/recommendations` |
-
----
-
-## 9. AI Logic
-
-คำนวณใน `services/ai_service.py` และ `services/progress_service.py`
-
-| สูตร | รายละเอียด |
-|---|---|
-| Understanding | `(0.6 × Accuracy) + (0.4 × Speed)` |
-| Mastery | `SUM(Understanding) / Total Attempts` |
-| Level: Weak | Mastery < 0.60 |
-| Level: Improving | Mastery 0.60 – 0.80 |
-| Level: Strong | Mastery > 0.80 |
-
-Speed คำนวณจาก `expected_time / response_time` (ค่าสูงสุด 1.0)
-
----
-
-## 10. Troubleshooting
-
-### Connection refused / SocketException
-
-- ตรวจสอบว่า Flask API รันอยู่: `python app.py`
-- ตรวจสอบ `baseUrl` ใน `api_service.dart` ตรงกับ device หรือไม่
-- Android emulator ต้องใช้ `10.0.2.2` ไม่ใช่ `localhost`
-
-### 401 Unauthorized
-
-- Firebase ID Token หมดอายุ (อายุ 1 ชั่วโมง) — Flutter จะ refresh อัตโนมัติ
-- ตรวจสอบว่า `serviceAccountKey.json` ถูกต้องและอยู่ใน path ที่กำหนด
-
-### MySQL connection error
-
-- ตรวจสอบค่าใน `.env` ว่า `DB_PASSWORD` ถูกต้อง
-- ตรวจสอบว่า MySQL service รันอยู่
-- ตรวจสอบว่า database `learnflow` ถูกสร้างแล้ว
-
-### Cleartext HTTP blocked (Android)
-
-- เพิ่ม `android:usesCleartextTraffic="true"` ใน `AndroidManifest.xml`
-
-### No quizzes / No recommendations
-
-- ตรวจสอบว่ารัน seed data ครบแล้ว: `seed_subjects.sql` → `seed_quizzes.sql` → `seed_questions.py`
-- Recommendations จะปรากฏหลังจาก user ทำ quiz ครั้งแรกเสร็จ
-
----
-
-## 11. โครงสร้างไฟล์
-
-### API
-
-```
-learnflow_api/
-├── app.py                         # Flask entry point
-├── requirements.txt
-├── .env.example
-├── config/
-│   ├── db_config.py               # MySQL connection
-│   ├── firebase_config.py         # Firebase Admin SDK init
-│   └── serviceAccountKey.json    # ⚠️ ไม่รวมใน git
-├── middleware/
-│   └── auth_middleware.py         # @require_auth decorator
-├── routes/
-│   ├── auth.py                    # POST /api/auth/*
-│   ├── quiz.py                    # GET/POST /api/quiz*
-│   ├── result.py                  # GET /api/result*, /api/review*
-│   ├── analysis.py                # GET /api/analysis, /api/dashboard
-│   ├── recommendation.py          # GET /api/recommendations
-│   └── profile.py                 # GET /api/profile
-├── services/
-│   ├── ai_service.py              # สูตรคำนวณ Understanding / Mastery
-│   └── progress_service.py        # update topic_analysis + progress
-└── database/
-    ├── init.sql
-    ├── schema/
-    │   ├── 01_users.sql
-    │   ├── 02_subjects.sql
-    │   ├── 03_quiz_system.sql      # [FIXED]
-    │   ├── 04_quiz_activity.sql    # [FIXED]
-    │   ├── 05_ai_analysis.sql
-    │   └── 06_progress.sql
-    └── seeds/
-        ├── seed_subjects.sql
-        ├── seed_quizzes.sql
-        └── seed_questions.py
-```
-
-### Flutter
-
-```
-lib/
-├── main.dart
-├── firebase_options.dart
-├── services/
-│   ├── api_service.dart           # HTTP client + Firebase token
-│   ├── auth_service.dart
-│   ├── quiz_service.dart
-│   ├── result_service.dart
-│   ├── analytics_service.dart
-│   ├── profile_service.dart
-│   └── recommendation_service.dart
-└── pages/
-    ├── SplashScreen.dart
-    ├── OnboardingScreen.dart
-    ├── LoginPage.dart             # [UPDATED]
-    ├── RegisterPage.dart          # [UPDATED]
-    ├── ForgotPasswordPage.dart
-    ├── HomePage.dart              # [UPDATED]
-    ├── QuizPage.dart              # [UPDATED]
-    ├── DetailBasicMathPage.dart   # [UPDATED]
-    ├── BasicMathPage.dart         # [UPDATED]
-    ├── ResultPage.dart            # [UPDATED]
-    ├── ReviewAnswerPage.dart      # [UPDATED]
-    ├── Analyticspage.dart         # [UPDATED]
-    ├── Profilepage.dart           # [UPDATED]
-    ├── Reminderpage.dart
-    └── ContactUsPage.dart
-```
+| Connection refused | ตรวจสอบว่า `python app.py` รันอยู่ และ `baseUrl` ถูกต้อง |
+| Android ใช้ `localhost` ไม่ได้ | เปลี่ยนเป็น `10.0.2.2` |
+| 401 Unauthorized | ตรวจสอบ `serviceAccountKey.json` ถูก path หรือไม่ |
+| MySQL connection error | ตรวจสอบ `DB_PASSWORD` ใน `.env` และ MySQL service รันอยู่ |
+| Cleartext HTTP blocked | เพิ่ม `usesCleartextTraffic="true"` ใน `AndroidManifest.xml` |
+| ไม่มี quiz ขึ้น | รัน seed data ครบทั้ง 3 ไฟล์ตามลำดับ |
+| Recommendations ว่างเปล่า | ต้องทำ quiz อย่างน้อย 1 ครั้งก่อน |

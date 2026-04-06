@@ -75,6 +75,37 @@ def get_quiz_detail(quiz_id):
     finally:
         conn.close()
 
+def check_attempted(quiz_id):
+    """
+    GET /api/quiz/<quiz_id>/attempted
+    ตรวจสอบว่า user เคยทำ quiz นี้มาก่อนหรือเปล่า
+    Flutter ใช้ตัดสินใจว่าจะแสดงปุ่ม Retake หรือไม่
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                'SELECT user_id FROM users WHERE firebase_uid = %s',
+                (g.firebase_uid,)
+            )
+            user = cur.fetchone()
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+
+            cur.execute(
+                '''SELECT COUNT(*) as cnt
+                   FROM quiz_attempts
+                   WHERE user_id = %s AND quiz_id = %s''',
+                (user['user_id'], quiz_id)
+            )
+            result = cur.fetchone()
+            has_attempted = result['cnt'] > 0
+
+        return jsonify({'has_attempted': has_attempted}), 200
+
+    finally:
+        conn.close()
+
 
 @quiz_bp.route('/api/quiz/submit', methods=['POST'])
 @require_auth

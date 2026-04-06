@@ -1,60 +1,89 @@
-// lib/pages/DetailBasicMathPage.dart  [UPDATED — รับ quiz data จาก arguments]
+// lib/pages/DetailBasicMathPage.dart  [FIXED — ซ่อนปุ่ม Retake ถ้ายังไม่เคยทำ]
 
 import 'package:flutter/material.dart';
+import '../services/result_service.dart';
 
-class DetailBasicMathPage extends StatelessWidget {
+class DetailBasicMathPage extends StatefulWidget {
   const DetailBasicMathPage({super.key});
 
+  @override
+  State<DetailBasicMathPage> createState() => _DetailBasicMathPageState();
+}
+
+class _DetailBasicMathPageState extends State<DetailBasicMathPage> {
   static const Color primaryGreen = Color(0xFF1DBA78);
   static const Color bgColor      = Color(0xFFF0FBF4);
   static const Color cardGreen    = Color.fromARGB(255, 129, 227, 171);
 
+  // ── State ──────────────────────────────────────────────────────────────────
+  bool _hasAttempted = false; // true = เคยทำมาแล้ว → แสดงปุ่ม Retake
+  bool _isChecking   = true;
+  int  _quizId       = 1;
+  Map<String, dynamic> _quiz = {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic>) {
+      _quiz   = args;
+      _quizId = args['quiz_id'] ?? 1;
+    }
+    _checkPreviousAttempt();
+  }
+
+  // ตรวจสอบว่าเคยทำ quiz นี้มาก่อนหรือเปล่า
+  Future<void> _checkPreviousAttempt() async {
+    setState(() => _isChecking = true);
+    try {
+      final hasDone = await ResultService.hasAttempted(_quizId);
+      setState(() {
+        _hasAttempted = hasDone;
+        _isChecking   = false;
+      });
+    } catch (_) {
+      setState(() { _hasAttempted = false; _isChecking = false; });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // รับ quiz data จาก QuizPage หรือ HomePage
-    final args = ModalRoute.of(context)?.settings.arguments;
-    final quiz = args is Map<String, dynamic> ? args : <String, dynamic>{};
-
-    final quizId      = quiz['quiz_id']      ?? 1;
-    final title       = (quiz['title']       ?? 'BASIC MATH REVIEW').toString().toUpperCase();
-    final subject     = (quiz['subject_name']?? 'MATHEMATICAL').toString().toUpperCase();
-    final level       = (quiz['level']       ?? 'EASY').toString().toUpperCase();
-    final totalQ      = quiz['total_questions'] ?? 10;
+    final title   = (_quiz['title']        ?? 'BASIC MATH REVIEW').toString().toUpperCase();
+    final subject = (_quiz['subject_name'] ?? 'MATHEMATICAL').toString().toUpperCase();
+    final level   = (_quiz['level']        ?? 'EASY').toString().toUpperCase();
+    final totalQ  = _quiz['total_questions'] ?? 10;
 
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(child: Text(title,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold,
-                            color: primaryGreen, letterSpacing: 1.2))),
-                    const SizedBox(height: 20),
-                    _buildLogo(),
-                    const SizedBox(height: 24),
-                    _buildQuizDetailsSection(subject, level, totalQ),
-                    const SizedBox(height: 24),
-                    _buildActionButtons(context, quizId),
-                    const SizedBox(height: 20),
-                  ],
+        child: Column(children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
                 ),
-              ),
+                const SizedBox(height: 16),
+                Center(child: Text(title,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold,
+                        color: primaryGreen, letterSpacing: 1.2))),
+                const SizedBox(height: 20),
+                _buildLogo(),
+                const SizedBox(height: 24),
+                _buildQuizDetails(subject, level, totalQ),
+                const SizedBox(height: 24),
+                _isChecking
+                    ? const Center(child: CircularProgressIndicator(color: primaryGreen))
+                    : _buildActionButtons(context),
+                const SizedBox(height: 20),
+              ]),
             ),
-            _buildBottomNavBar(context),
-          ],
-        ),
+          ),
+          _buildBottomNavBar(context),
+        ]),
       ),
     );
   }
@@ -67,27 +96,30 @@ class DetailBasicMathPage extends StatelessWidget {
     ));
   }
 
-  Widget _buildQuizDetailsSection(String subject, String level, dynamic totalQ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('QUIZ DETAILS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
-            letterSpacing: 1.5, color: primaryGreen)),
-        const SizedBox(height: 12),
-        _buildDetailRow('SUBJECT :', subject),
+  Widget _buildQuizDetails(String subject, String level, dynamic totalQ) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('QUIZ DETAILS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
+          letterSpacing: 1.5, color: primaryGreen)),
+      const SizedBox(height: 12),
+      _detailRow('SUBJECT :', subject),
+      const SizedBox(height: 8),
+      _detailRow('QUESTIONS :', '$totalQ'),
+      const SizedBox(height: 8),
+      _detailRow('TIME LIMIT :', '45 MINS'),
+      const SizedBox(height: 8),
+      _detailRow('DIFFICULTY :', level),
+      const SizedBox(height: 8),
+      // แสดง BEST SCORE เฉพาะเมื่อเคยทำแล้ว
+      if (_hasAttempted) ...[
+        _detailRow('BEST SCORE :', _quiz['best_score'] != null
+            ? '${_quiz['best_score']}%' : '-'),
         const SizedBox(height: 8),
-        _buildDetailRow('QUESTIONS :', '$totalQ'),
-        const SizedBox(height: 8),
-        _buildDetailRow('TIME LIMIT :', '45 MINS'),
-        const SizedBox(height: 8),
-        _buildDetailRow('DIFFICULTY :', level),
-        const SizedBox(height: 8),
-        _buildExamContentBox(),
       ],
-    );
+      _examContentBox(),
+    ]);
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _detailRow(String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: cardGreen, borderRadius: BorderRadius.circular(10)),
@@ -99,37 +131,45 @@ class DetailBasicMathPage extends StatelessWidget {
     );
   }
 
-  Widget _buildExamContentBox() {
+  Widget _examContentBox() {
     return Container(
       width: double.infinity, height: 80,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: cardGreen, borderRadius: BorderRadius.circular(10)),
       child: const Align(alignment: Alignment.topLeft,
-          child: Text('EXAM CONTENT :',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54))),
+          child: Text('EXAM CONTENT :', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54))),
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, int quizId) {
+  Widget _buildActionButtons(BuildContext context) {
     return Column(children: [
+      // ── START QUIZ (แสดงเสมอ) ──────────────────────────────────────────
       SizedBox(width: double.infinity, child: ElevatedButton(
-        onPressed: () => Navigator.pushNamed(context, '/basic-math', arguments: {'quiz_id': quizId}),
-        style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), elevation: 0),
+        onPressed: () => Navigator.pushNamed(
+          context, '/basic-math', arguments: {'quiz_id': _quizId}),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryGreen, foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), elevation: 0),
         child: const Text('START QUIZ',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
       )),
-      const SizedBox(height: 12),
-      SizedBox(width: double.infinity, child: OutlinedButton(
-        onPressed: () => Navigator.pushNamed(context, '/basic-math', arguments: {'quiz_id': quizId}),
-        style: OutlinedButton.styleFrom(foregroundColor: primaryGreen,
+
+      // ── RETAKE (แสดงเฉพาะเมื่อเคยทำแล้ว) ──────────────────────────────
+      if (_hasAttempted) ...[
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: OutlinedButton(
+          onPressed: () => Navigator.pushNamed(
+            context, '/basic-math', arguments: {'quiz_id': _quizId}),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: primaryGreen,
             side: const BorderSide(color: primaryGreen, width: 2),
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
-        child: const Text('RETAKE',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-      )),
+          child: const Text('RETAKE',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        )),
+      ],
     ]);
   }
 

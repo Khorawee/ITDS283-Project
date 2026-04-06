@@ -1,8 +1,10 @@
-// lib/pages/Profilepage.dart  [UPDATED — เชื่อม API]
+// lib/pages/Profilepage.dart  [FIXED — Language switching จริง + Notification จริง]
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/notification_service.dart';
 import '../services/profile_service.dart';
+import '../main.dart' show LearnFlowApp;
 import 'ContactUsPage.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -17,13 +19,10 @@ class _ProfilePageState extends State<ProfilePage> {
   static const Color cardGreen    = Color(0xFF81E3AB);
   static const Color bgColor      = Color(0xFFF0FBF4);
 
-  // ── Settings state ─────────────────────────────────────────────────────────
   bool   _notifications    = true;
-  String _language         = 'English';
   String _preferredSubject = 'Computer';
   String _learningMode     = 'Normal';
 
-  // ── API state ──────────────────────────────────────────────────────────────
   Map<String, dynamic> _profile = {};
   bool _isLoading = true;
 
@@ -50,52 +49,122 @@ class _ProfilePageState extends State<ProfilePage> {
     return FirebaseAuth.instance.currentUser?.displayName ?? 'User';
   }
 
-  String get _email => _profile['email']
-      ?? FirebaseAuth.instance.currentUser?.email
-      ?? 'N/A';
+  String get _email    => _profile['email'] ?? FirebaseAuth.instance.currentUser?.email ?? 'N/A';
+  String get _totalQ   => '${_profile['total_quizzes'] ?? 0}';
+  String get _grade    => _profile['grade'] ?? '-';
+  double get _avgScore => ((_profile['avg_score'] ?? 0) as num).toDouble();
 
-  String get _totalQuizzes => '${_profile['total_quizzes'] ?? 0}';
-  String get _grade        => _profile['grade'] ?? '-';
-  double get _avgScore     => ((_profile['avg_score'] ?? 0) as num).toDouble();
+  // ── Language ────────────────────────────────────────────────────────────────
+  // อ่านภาษาปัจจุบันจาก global state ใน main.dart
+  Locale get _currentLocale => LearnFlowApp.currentLocale;
 
-  // ── Metric bars ────────────────────────────────────────────────────────────
-  List<Map<String, dynamic>> get _metrics => [
-    {'label': 'Average Total Score', 'value': _avgScore / 100},
-    {'label': 'Quizzes Completed',   'value': (int.parse(_totalQuizzes) / 100).clamp(0.0, 1.0)},
-  ];
+  String get _languageLabel =>
+      _currentLocale.languageCode == 'th' ? 'ภาษาไทย' : 'English';
 
-  // ── Dialogs ────────────────────────────────────────────────────────────────
   void _showLanguageDialog() {
-    _showRadioDialog('Language', ['English', 'ภาษาไทย'], _language,
-        (val) => setState(() => _language = val));
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(
+          _currentLocale.languageCode == 'th' ? 'ภาษา' : 'Language',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<String>(
+              title: const Text('English'),
+              value: 'en',
+              groupValue: _currentLocale.languageCode,
+              activeColor: primaryGreen,
+              onChanged: (val) {
+                LearnFlowApp.setLocale(context, const Locale('en'));
+                setState(() {});
+                Navigator.pop(context);
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('ภาษาไทย'),
+              value: 'th',
+              groupValue: _currentLocale.languageCode,
+              activeColor: primaryGreen,
+              onChanged: (val) {
+                LearnFlowApp.setLocale(context, const Locale('th'));
+                setState(() {});
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Notifications toggle ────────────────────────────────────────────────────
+  Future<void> _toggleNotifications(bool value) async {
+    setState(() => _notifications = value);
+    if (value) {
+      // เปิดการแจ้งเตือน — request permission อีกครั้ง
+      await NotificationService.requestPermission();
+      await NotificationService.scheduleDailyReminder();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('เปิดการแจ้งเตือนแล้ว'),
+            backgroundColor: Color(0xFF1DBA78),
+          ),
+        );
+      }
+    } else {
+      // ปิดการแจ้งเตือน — cancel ทั้งหมด
+      await NotificationService.cancelAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ปิดการแจ้งเตือนแล้ว')),
+        );
+      }
+    }
   }
 
   void _showSubjectDialog() {
-    _showRadioDialog('Preferred Subjects',
-        ['Computer', 'Math', 'English', 'Science', 'Physics'],
-        _preferredSubject, (val) => setState(() => _preferredSubject = val));
+    _showRadioDialog(
+      'Preferred Subjects',
+      ['Computer', 'Math', 'English', 'Science', 'Physics'],
+      _preferredSubject,
+      (val) => setState(() => _preferredSubject = val),
+    );
   }
 
   void _showLearningModeDialog() {
-    _showRadioDialog('Learning Mode', ['Normal', 'Intensive', 'Relaxed'],
-        _learningMode, (val) => setState(() => _learningMode = val));
+    _showRadioDialog(
+      'Learning Mode',
+      ['Normal', 'Intensive', 'Relaxed'],
+      _learningMode,
+      (val) => setState(() => _learningMode = val),
+    );
   }
 
   void _showRadioDialog(String title, List<String> options, String current, ValueChanged<String> onChanged) {
-    showDialog(context: context, builder: (_) => AlertDialog(
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: options.map((opt) =>
-        RadioListTile<String>(
-          title: Text(opt), value: opt, groupValue: current,
-          activeColor: primaryGreen,
-          onChanged: (val) { onChanged(val!); Navigator.pop(context); },
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((opt) => RadioListTile<String>(
+            title: Text(opt),
+            value: opt,
+            groupValue: current,
+            activeColor: primaryGreen,
+            onChanged: (val) { onChanged(val!); Navigator.pop(context); },
+          )).toList(),
         ),
-      ).toList()),
-    ));
+      ),
+    );
   }
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> _logout() async {
+    await NotificationService.cancelAll();
     await FirebaseAuth.instance.signOut();
     if (mounted) Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
   }
@@ -129,9 +198,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 16),
                   _buildMetricsCard(),
                   const SizedBox(height: 16),
-                  _buildSettingsCard(context),
+                  _buildSettingsCard(),
                   const SizedBox(height: 16),
-                  _buildContactCard(context),
+                  _buildContactCard(),
                   const SizedBox(height: 16),
                   _buildLogoutButton(),
                   const SizedBox(height: 24),
@@ -139,7 +208,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
           ),
-          _buildBottomNavBar(context),
+          _buildBottomNavBar(),
         ]),
       ),
     );
@@ -159,12 +228,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildStatsRow() {
     final stats = [
-      {'icon': Icons.bolt,      'value': _totalQuizzes, 'label': 'Quizzes'},
-      {'icon': Icons.bar_chart, 'value': _grade,        'label': 'GRADE'},
+      {'icon': Icons.bolt,      'value': _totalQ, 'label': 'Quizzes'},
+      {'icon': Icons.bar_chart, 'value': _grade,  'label': 'GRADE'},
     ];
     return Row(children: stats.asMap().entries.map((e) {
-      final i = e.key;
-      final s = e.value;
+      final i = e.key; final s = e.value;
       return Expanded(child: Padding(
         padding: EdgeInsets.only(right: i == 0 ? 10 : 0),
         child: Container(
@@ -174,8 +242,7 @@ class _ProfilePageState extends State<ProfilePage> {
             Icon(s['icon'] as IconData, color: primaryGreen, size: 20),
             const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s['value'] as String,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+              Text(s['value'] as String, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
               Text(s['label'] as String, style: const TextStyle(fontSize: 11, color: Colors.black45)),
             ]),
           ]),
@@ -185,20 +252,22 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildMetricsCard() {
+    final metrics = [
+      {'label': 'Average Total Score', 'value': (_avgScore / 100).clamp(0.0, 1.0)},
+      {'label': 'Quizzes Completed',   'value': (int.parse(_totalQ) / 100).clamp(0.0, 1.0)},
+    ];
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-      child: Column(children: _metrics.map((m) {
-        final value    = (m['value'] as double).clamp(0.0, 1.0);
-        final pct      = (value * 100).toInt();
-        final barColor = pct >= 70 ? primaryGreen
-            : pct >= 50 ? const Color(0xFFF0B429) : const Color(0xFFE74C3C);
+      child: Column(children: metrics.map((m) {
+        final value = (m['value'] as double);
+        final pct   = (value * 100).toInt();
+        final barColor = pct >= 70 ? primaryGreen : pct >= 50 ? const Color(0xFFF0B429) : const Color(0xFFE74C3C);
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(m['label'] as String,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+              Text(m['label'] as String, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
               Text('$pct%', style: const TextStyle(fontSize: 11, color: Colors.black45)),
             ]),
             const SizedBox(height: 6),
@@ -212,7 +281,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSettingsCard(BuildContext context) {
+  Widget _buildSettingsCard() {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
       child: Column(children: [
@@ -223,24 +292,32 @@ class _ProfilePageState extends State<ProfilePage> {
           onTap: () {},
         ),
         _divider(),
+
+        // ── Notifications (จริง) ──────────────────────────────────────────
         ListTile(dense: true,
           leading: const Icon(Icons.notifications_outlined, color: primaryGreen, size: 20),
           title: const Text('Notifications', style: TextStyle(fontSize: 13, color: Colors.black87)),
-          trailing: Switch(value: _notifications,
-              onChanged: (val) => setState(() => _notifications = val), activeColor: primaryGreen),
+          trailing: Switch(
+            value: _notifications,
+            onChanged: _toggleNotifications,
+            activeColor: primaryGreen,
+          ),
         ),
         _divider(),
+
+        // ── Language (เปลี่ยนจริง) ────────────────────────────────────────
         ListTile(dense: true,
           leading: const Icon(Icons.language_outlined, color: primaryGreen, size: 20),
           title: const Text('Language', style: TextStyle(fontSize: 13, color: Colors.black87)),
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(_language, style: const TextStyle(fontSize: 12, color: primaryGreen)),
+            Text(_languageLabel, style: const TextStyle(fontSize: 12, color: primaryGreen)),
             const SizedBox(width: 4),
             const Icon(Icons.chevron_right, color: Colors.black38, size: 18),
           ]),
           onTap: _showLanguageDialog,
         ),
         _divider(),
+
         ListTile(dense: true,
           leading: const Icon(Icons.school_outlined, color: primaryGreen, size: 20),
           title: const Text('Preferred Subjects', style: TextStyle(fontSize: 13, color: Colors.black87)),
@@ -252,6 +329,7 @@ class _ProfilePageState extends State<ProfilePage> {
           onTap: _showSubjectDialog,
         ),
         _divider(),
+
         ListTile(dense: true,
           leading: const Icon(Icons.psychology_outlined, color: primaryGreen, size: 20),
           title: const Text('Learning Mode', style: TextStyle(fontSize: 13, color: Colors.black87)),
@@ -268,7 +346,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _divider() => Divider(height: 1, color: Colors.grey.shade200, indent: 16, endIndent: 16);
 
-  Widget _buildContactCard(BuildContext context) {
+  Widget _buildContactCard() {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
       child: ListTile(dense: true,
@@ -287,7 +365,8 @@ class _ProfilePageState extends State<ProfilePage> {
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF7B1C1C),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
         ),
         onPressed: _logout,
         child: const Text('LOGOUT',
@@ -296,7 +375,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildBottomNavBar(BuildContext context) {
+  Widget _buildBottomNavBar() {
     final items = [
       {'icon': Icons.home_outlined,      'activeIcon': Icons.home,      'label': 'Home',      'route': '/home'},
       {'icon': Icons.quiz_outlined,      'activeIcon': Icons.quiz,      'label': 'Quiz',      'route': '/quiz'},
