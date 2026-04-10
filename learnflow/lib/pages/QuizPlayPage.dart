@@ -1,17 +1,17 @@
-// lib/pages/BasicMathPage.dart  [UPDATED — เชื่อม API]
+// lib/pages/QuizPlayPage.dart  [RENAMED from BasicMathPage]
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/quiz_service.dart';
 
-class BasicMathPage extends StatefulWidget {
-  const BasicMathPage({super.key});
+class QuizPlayPage extends StatefulWidget {
+  const QuizPlayPage({super.key});
 
   @override
-  State<BasicMathPage> createState() => _BasicMathPageState();
+  State<QuizPlayPage> createState() => _QuizPlayPageState();
 }
 
-class _BasicMathPageState extends State<BasicMathPage> {
+class _QuizPlayPageState extends State<QuizPlayPage> {
   static const Color primaryGreen = Color(0xFF1DBA78);
   static const Color cardGreen    = Color.fromARGB(255, 129, 227, 171);
   static const Color bgColor      = Color(0xFFF0FBF4);

@@ -1,34 +1,51 @@
+// lib/pages/Reminderpage.dart  [FIXED]
+// แก้: ดึง pending notifications จริงจาก NotificationService
+// แก้: ใช้ LearnFlowBottomNav กลาง
+
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../services/notification_service.dart';
+import '../widgets/bottom_nav.dart';
 
-class ReminderPage extends StatelessWidget {
+class ReminderPage extends StatefulWidget {
   const ReminderPage({super.key});
+  @override
+  State<ReminderPage> createState() => _ReminderPageState();
+}
 
+class _ReminderPageState extends State<ReminderPage> {
   static const Color primaryGreen = Color(0xFF1DBA78);
-  static const Color cardGreen = Color(0xFF81E3AB);
+  static const Color cardGreen    = Color(0xFF81E3AB);
 
-  final List<Map<String, dynamic>> _reminders = const [
-    {
-      'group': 'Today',
-      'items': [
-        {'title': 'Quiz starts in 15 minutes',  'time': 'Today, 9:00'},
-        {'title': 'Your quiz results are ready', 'time': 'Today, 9:00'},
-      ],
-    },
-    {
-      'group': 'Yesterday',
-      'items': [
-        {'title': 'Daily quiz has ended',          'time': 'Yesterday, 9:00'},
-        {'title': "Don't forget to review before bed", 'time': 'Yesterday, 9:00'},
-      ],
-    },
-    {
-      'group': 'Mar 8, 2026',
-      'items': [
-        {'title': 'Weekly lesson summary is ready', 'time': '10:00 · Mar 8, 2026'},
-        {'title': 'Weekly quiz deadline has passed', 'time': '09:00 · Mar 8, 2026'},
-      ],
-    },
-  ];
+  List<PendingNotificationRequest> _pending = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPending();
+  }
+
+  Future<void> _loadPending() async {
+    setState(() => _isLoading = true);
+    try {
+      final plugin = FlutterLocalNotificationsPlugin();
+      final list   = await plugin.pendingNotificationRequests();
+      setState(() { _pending = list; _isLoading = false; });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _cancelOne(int id) async {
+    await NotificationService.cancel(id);
+    await _loadPending();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ยกเลิกการแจ้งเตือนแล้ว')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,116 +60,103 @@ class ReminderPage extends StatelessWidget {
         ),
         title: const Text(
           'REMINDER',
-          style: TextStyle(
-            color: primaryGreen,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.0,
-          ),
+          style: TextStyle(color: primaryGreen, fontSize: 18,
+              fontWeight: FontWeight.bold, letterSpacing: 1.0),
         ),
         centerTitle: true,
+        actions: [
+          if (_pending.isNotEmpty)
+            TextButton(
+              onPressed: () async {
+                await NotificationService.cancelAll();
+                _loadPending();
+              },
+              child: const Text('Clear all',
+                  style: TextStyle(color: Colors.red, fontSize: 13)),
+            ),
+        ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        itemCount: _reminders.length,
-        itemBuilder: (context, groupIndex) {
-          final group = _reminders[groupIndex];
-          final items =
-              group['items'] as List<Map<String, dynamic>>;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-              Text(
-                group['group'] as String,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryGreen))
+          : _pending.isEmpty
+              ? _buildEmpty()
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 16),
+                  itemCount: _pending.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => _buildCard(_pending[i]),
                 ),
-              ),
-              const SizedBox(height: 10),
-              GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 1.15,
-                children: items
-                    .map((item) => _buildReminderCard(item))
-                    .toList(),
-              ),
-            ],
-          );
-        },
-      ),
+      bottomNavigationBar: const LearnFlowBottomNav(selectedIndex: 0),
     );
   }
 
-  Widget _buildReminderCard(Map<String, dynamic> item) {
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.notifications_off_outlined,
+            size: 64, color: Colors.grey.shade300),
+        const SizedBox(height: 16),
+        const Text('ไม่มีการแจ้งเตือนที่ตั้งไว้',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
+                color: Colors.black45)),
+        const SizedBox(height: 8),
+        const Text('เปิดการแจ้งเตือนได้ที่ Profile → Notifications',
+            style: TextStyle(fontSize: 13, color: Colors.black38),
+            textAlign: TextAlign.center),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: () => Navigator.pushReplacementNamed(context, '/profile'),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: primaryGreen,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30)),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 24, vertical: 12),
+              elevation: 0),
+          child: const Text('ไปที่ Profile',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildCard(PendingNotificationRequest req) {
+    final title = req.title ?? 'Reminder';
+    final body  = req.body  ?? '';
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardGreen,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'REMINDER',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black54,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Text(
-                'NOW',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black54,
-                ),
-              ),
+          color: cardGreen, borderRadius: BorderRadius.circular(16)),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.5),
+              shape: BoxShape.circle),
+          child: const Icon(Icons.notifications_outlined,
+              color: primaryGreen, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold,
+                    color: Colors.black87)),
+            if (body.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(body,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
             ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Text(
-              item['title'] as String,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                height: 1.3,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              item['time'] as String,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: Colors.black54,
-              ),
-            ),
-          ),
-        ],
-      ),
+          ]),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close, size: 18, color: Colors.black45),
+          onPressed: () => _cancelOne(req.id),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+      ]),
     );
   }
 }

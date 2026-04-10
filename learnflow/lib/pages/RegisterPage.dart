@@ -1,4 +1,4 @@
-// lib/pages/RegisterPage.dart  [UPDATED — เชื่อม API]
+// lib/pages/RegisterPage.dart  [FIXED]
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -97,23 +97,47 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  // ── Google Sign-In + API sync ─────────────────────────────────────────────
+  // ── Google Sign-In ────────────────────────────────────────────────────────
+  // FIX: Google บน RegisterPage ควรทำงานเหมือน Login (ไม่ใช่ register ใหม่)
+  // เพราะ Google account มักมีอยู่แล้ว และ Firebase จะ sign-in หรือ link อัตโนมัติ
   Future<void> _signInWithGoogle() async {
     setState(() => _isGoogleLoading = true);
     try {
-      final googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) { setState(() => _isGoogleLoading = false); return; }
+      // FIX: signOut ก่อนทุกครั้งเพื่อให้ Google แสดง account picker
+      // หากไม่ทำ Google จะใช้ cached account โดยไม่แสดง picker
+      final googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => _isGoogleLoading = false);
+        return;
+      }
+
       final googleAuth = await googleUser.authentication;
-      final cred = await FirebaseAuth.instance.signInWithCredential(
-        GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken:     googleAuth.idToken,
-        ),
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken:     googleAuth.idToken,
       );
+
+      // Firebase signInWithCredential — ถ้า account มีอยู่แล้วจะ sign in
+      // ถ้ายังไม่มีจะสร้างใหม่อัตโนมัติ
+      final cred = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // Sync กับ MySQL (API จะ upsert ให้ ไม่ duplicate)
       await AuthService.syncGoogleLogin(cred.user?.displayName ?? '');
+
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
+    } on FirebaseAuthException catch (e) {
+      // FIX: handle กรณีที่ email นี้สมัครด้วย email/password แล้ว
+      if (e.code == 'account-exists-with-different-credential') {
+        _showSnack('This email is already registered with email/password. Please log in instead.');
+      } else {
+        _showSnack('Google sign-in failed: ${e.message}');
+      }
     } on ApiException catch (e) {
       debugPrint('API sync warning: ${e.message}');
+      // Firebase login สำเร็จแล้ว ให้เข้าแอปได้
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
       _showSnack('Google sign-in failed. Please try again.');

@@ -15,7 +15,7 @@ class ResultService {
   }
 
   /// GET /api/quiz/<quiz_id>/attempted — ตรวจสอบว่า user เคยทำ quiz นี้มาก่อนหรือเปล่า
-  /// ใช้สำหรับซ่อน/แสดงปุ่ม Retake ใน DetailBasicMathPage
+  /// ใช้สำหรับซ่อน/แสดงปุ่ม Retake ใน QuizDetailPage
   static Future<bool> hasAttempted(int quizId) async {
     try {
       final data = await ApiService.get('/api/quiz/$quizId/attempted');

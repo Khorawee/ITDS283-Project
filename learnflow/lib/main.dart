@@ -1,4 +1,4 @@
-// lib/main.dart  [UPDATED — Language switching + Notification init]
+// lib/main.dart  [UPDATED — renamed page imports + updated routes]
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -12,8 +12,8 @@ import 'pages/RegisterPage.dart';
 import 'pages/ForgotPasswordPage.dart';
 import 'pages/HomePage.dart';
 import 'pages/QuizPage.dart';
-import 'pages/DetailBasicMathPage.dart';
-import 'pages/BasicMathPage.dart';
+import 'pages/QuizDetailPage.dart';   
+import 'pages/QuizPlayPage.dart';     
 import 'pages/ResultPage.dart';
 import 'pages/ReviewAnswerPage.dart';
 import 'pages/Analyticspage.dart';
@@ -36,11 +36,9 @@ void main() async {
 }
 
 // ── Global locale state ────────────────────────────────────────────────────
-// เก็บ locale ปัจจุบันที่ระดับ app เพื่อให้ ProfilePage เรียกได้
 class LearnFlowApp extends StatefulWidget {
   const LearnFlowApp({super.key});
 
-  // static key สำหรับเรียก setLocale จากทุกหน้า
   static final GlobalKey<_LearnFlowAppState> _appKey = GlobalKey<_LearnFlowAppState>();
 
   static Locale get currentLocale =>
@@ -72,28 +70,26 @@ class _LearnFlowAppState extends State<LearnFlowApp> {
         Locale('en'),
         Locale('th'),
       ],
-      // localizationsDelegates ถ้าใช้ flutter_localizations ให้เพิ่มตรงนี้
-      // localizationsDelegates: AppLocalizations.localizationsDelegates,
       initialRoute: '/splash',
       routes: {
-        '/splash':            (context) => const SplashScreen(),
-        '/onboarding':        (context) => const OnboardingScreen(),
-        '/':                  (context) => const LoginPage(),
-        '/register':          (context) => const RegisterPage(),
-        '/forgot-password':   (context) => const ForgotPasswordPage(),
-        '/home':              (context) => const HomePage(),
-        '/quiz':              (context) => const QuizPage(),
-        '/detail-basic-math': (context) => const DetailBasicMathPage(),
-        '/basic-math':        (context) => const BasicMathPage(),
-        '/result':            (context) => const ResultPage(),
+        '/splash':          (context) => const SplashScreen(),
+        '/onboarding':      (context) => const OnboardingScreen(),
+        '/':                (context) => const LoginPage(),
+        '/register':        (context) => const RegisterPage(),
+        '/forgot-password': (context) => const ForgotPasswordPage(),
+        '/home':            (context) => const HomePage(),
+        '/quiz':            (context) => const QuizPage(),
+        '/quiz-detail':     (context) => const QuizDetailPage(),   // เปลี่ยนจาก /detail-basic-math
+        '/quiz-play':       (context) => const QuizPlayPage(),     // เปลี่ยนจาก /basic-math
+        '/result':          (context) => const ResultPage(),
         '/review-answer': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           final attemptId = args is int ? args : 0;
           return ReviewAnswerPage(attemptId: attemptId);
-          },
-        '/analytics':         (context) => const AnalyticsScreen(),
-        '/profile':           (context) => const ProfilePage(),
-        '/reminder':          (context) => const ReminderPage(),
+        },
+        '/analytics':       (context) => const AnalyticsScreen(),
+        '/profile':         (context) => const ProfilePage(),
+        '/reminder':        (context) => const ReminderPage(),
       },
     );
   }

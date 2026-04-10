@@ -1,5 +1,5 @@
--- 04_quiz_activity.sql  [FIXED]
--- แก้ไข: DEFAULT ไม่มีค่า → DEFAULT 0, ขาด comma ระหว่าง FOREIGN KEY
+USE learnflow;
+-- 04_quiz_activity.sql  [FIXED + ADDED composite index]
 
 CREATE TABLE IF NOT EXISTS quiz_attempts (
     attempt_id      INT         NOT NULL AUTO_INCREMENT,
@@ -7,12 +7,12 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     quiz_id         INT         NOT NULL,
     score           INT         NOT NULL DEFAULT 0,
     total           INT         NOT NULL DEFAULT 0,
-    time_spent      FLOAT       NOT NULL DEFAULT 0,            -- FIX: DEFAULT ไม่มีค่า → DEFAULT 0
+    time_spent      FLOAT       NOT NULL DEFAULT 0,
     attempt_date    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (attempt_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id),           -- FIX: เพิ่ม comma
-    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id)
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS user_answers (
@@ -25,10 +25,12 @@ CREATE TABLE IF NOT EXISTS user_answers (
     attempt_count       INT         NOT NULL DEFAULT 1,
 
     PRIMARY KEY (answer_id),
-    FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(attempt_id),
-    FOREIGN KEY (question_id) REFERENCES questions(question_id)
+    FOREIGN KEY (attempt_id)  REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(question_id)    ON DELETE CASCADE
 );
 
-CREATE INDEX idx_quiz_attempts_user_id ON quiz_attempts (user_id);
-CREATE INDEX idx_quiz_attempts_date ON quiz_attempts (attempt_date);
-CREATE INDEX idx_user_answers_attempt_id ON user_answers (attempt_id);
+CREATE INDEX idx_quiz_attempts_user_id   ON quiz_attempts (user_id);
+CREATE INDEX idx_quiz_attempts_date      ON quiz_attempts (attempt_date);
+CREATE INDEX idx_user_answers_attempt_id ON user_answers  (attempt_id);
+-- ADD: composite index เพื่อ filter ข้อผิดเร็วขึ้นใน review และ analysis
+CREATE INDEX idx_user_answers_attempt_correct ON user_answers (attempt_id, is_correct);

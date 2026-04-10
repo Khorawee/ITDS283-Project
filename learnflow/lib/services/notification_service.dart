@@ -1,6 +1,5 @@
 // lib/services/notification_service.dart
-// รองรับ Android / iOS เท่านั้น
-// Windows / Web → skip อัตโนมัติ ไม่ error
+// FIX: เพิ่ม getPendingCount() เพื่อให้ HomePage ตรวจสอบว่ามี reminder ตั้งอยู่หรือเปล่า
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -12,7 +11,6 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
-  // Windows และ Web ไม่รองรับ → skip
   static bool get _isSupported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
@@ -20,17 +18,18 @@ class NotificationService {
        defaultTargetPlatform == TargetPlatform.macOS);
 
   static Future<void> init() async {
-    if (!_isSupported) return;
-    if (_initialized) return;
+    if (!_isSupported || _initialized) return;
     tz_data.initializeTimeZones();
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
     await _plugin.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      const InitializationSettings(
+          android: androidSettings, iOS: iosSettings),
     );
     _initialized = true;
   }
@@ -44,13 +43,24 @@ class NotificationService {
     }
   }
 
+  // FIX: เพิ่ม method นี้เพื่อให้ HomePage ดึงจำนวน pending notifications
+  static Future<int> getPendingCount() async {
+    if (!_isSupported) return 0;
+    try {
+      final pending = await _plugin.pendingNotificationRequests();
+      return pending.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   static Future<void> showNow({
     required int id,
     required String title,
     required String body,
   }) async {
     if (!_isSupported) {
-      debugPrint('[Notification] skipped on Windows/Web: $title');
+      debugPrint('[Notification] skipped: $title');
       return;
     }
     await _plugin.show(

@@ -78,9 +78,8 @@ class _ResultPageState extends State<ResultPage> {
                 child: const Icon(Icons.person, color: primaryGreen, size: 30)),
           ]),
           const SizedBox(height: 16),
-          Center(child: Container(width: 80, height: 80,
-            decoration: BoxDecoration(color: cardGreen.withOpacity(0.4), shape: BoxShape.circle),
-            child: const Icon(Icons.calculate_outlined, color: primaryGreen, size: 42))),
+          // รูปภาพประจำวิชา — แสดงตามวิชาของข้อสอบที่เลือก
+          Center(child: _buildSubjectImage(subject)),
           const SizedBox(height: 24),
           const Text('QUIZ DETAILS', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: primaryGreen)),
           const SizedBox(height: 10),
@@ -139,6 +138,24 @@ class _ResultPageState extends State<ResultPage> {
           const SizedBox(height: 36),
         ]),
       ),
+    );
+  }
+
+  /// รูปภาพประจำวิชา — math.png สำหรับคณิต, Eng.png สำหรับอังกฤษ
+  Widget _buildSubjectImage(String subject) {
+    String? assetPath;
+    final s = subject.toUpperCase();
+    if (s.contains('MATH')) {
+      assetPath = 'assets/images/math.png';
+    } else if (s.contains('ENGLISH')) {
+      assetPath = 'assets/images/Eng.png';
+    }
+    return Container(
+      width: 100, height: 100,
+      decoration: BoxDecoration(color: cardGreen.withOpacity(0.4), shape: BoxShape.circle),
+      child: assetPath != null
+          ? ClipOval(child: Image.asset(assetPath, fit: BoxFit.cover))
+          : const Icon(Icons.quiz_outlined, color: primaryGreen, size: 48),
     );
   }
 

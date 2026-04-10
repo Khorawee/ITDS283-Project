@@ -2,6 +2,9 @@ from flask import Blueprint, request, jsonify, g
 from db_config import get_connection
 from auth_middleware import require_auth
 from ai_service import calculate_understanding
+import logging
+
+logger = logging.getLogger(__name__)
 
 quiz_bp = Blueprint('quiz', __name__)
 
@@ -10,21 +13,43 @@ quiz_bp = Blueprint('quiz', __name__)
 @require_auth
 def get_quizzes():
     """
-    GET /api/quizzes
-    ดึงรายการ Quiz ทั้งหมด พร้อม subject
+    GET /api/quizzes?page=1&limit=20
+    ดึงรายการ Quiz พร้อม pagination
     """
+    # ADD: Pagination
+    try:
+        page  = max(1, int(request.args.get('page', 1)))
+        limit = min(50, max(1, int(request.args.get('limit', 20))))
+    except ValueError:
+        return jsonify({'error': 'Invalid page or limit parameter'}), 400
+
+    offset = (page - 1) * limit
+
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute('''
-                SELECT q.quiz_id, q.title, q.level, q.total_questions,  -- FIX: total_questions
+            cur.execute('SELECT COUNT(*) as total FROM quizzes')
+            total = cur.fetchone()['total']
+
+            cur.execute('''\
+                SELECT q.quiz_id, q.title, q.level, q.total_questions,
                        s.subject_name
                 FROM quizzes q
                 JOIN subjects s ON q.subject_id = s.subject_id
                 ORDER BY q.quiz_id
-            ''')
+                LIMIT %s OFFSET %s
+            ''', (limit, offset))
             quizzes = cur.fetchall()
-        return jsonify({'quizzes': quizzes}), 200
+
+        return jsonify({
+            'quizzes': quizzes,
+            'pagination': {
+                'page':        page,
+                'limit':       limit,
+                'total':       total,
+                'total_pages': -(-total // limit),  # ceiling division
+            }
+        }), 200
     finally:
         conn.close()
 
@@ -32,16 +57,12 @@ def get_quizzes():
 @quiz_bp.route('/api/quiz/<int:quiz_id>', methods=['GET'])
 @require_auth
 def get_quiz_detail(quiz_id):
-    """
-    GET /api/quiz/<quiz_id>
-    ดึงรายละเอียด Quiz + คำถามทั้งหมด + ตัวเลือก
-    Flutter ใช้หน้า DetailBasicMathPage และ BasicMathPage
-    """
+    """GET /api/quiz/<quiz_id> — ดึงรายละเอียด Quiz + คำถาม + ตัวเลือก"""
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute('''
-                SELECT q.quiz_id, q.title, q.level, q.total_questions,  -- FIX: total_questions
+            cur.execute('''\
+                SELECT q.quiz_id, q.title, q.level, q.total_questions,
                        s.subject_name
                 FROM quizzes q
                 JOIN subjects s ON q.subject_id = s.subject_id
@@ -52,7 +73,7 @@ def get_quiz_detail(quiz_id):
             if not quiz:
                 return jsonify({'error': 'Quiz not found'}), 404
 
-            cur.execute('''
+            cur.execute('''\
                 SELECT question_id, topic, question_text,
                        correct_choice, explanation, expected_time
                 FROM questions
@@ -62,7 +83,7 @@ def get_quiz_detail(quiz_id):
             questions = cur.fetchall()
 
             for q in questions:
-                cur.execute('''
+                cur.execute('''\
                     SELECT choice_id, choice_label, choice_text
                     FROM choices
                     WHERE question_id = %s
@@ -75,12 +96,11 @@ def get_quiz_detail(quiz_id):
     finally:
         conn.close()
 
+
+@quiz_bp.route('/api/quiz/<int:quiz_id>/attempted', methods=['GET'])
+@require_auth
 def check_attempted(quiz_id):
-    """
-    GET /api/quiz/<quiz_id>/attempted
-    ตรวจสอบว่า user เคยทำ quiz นี้มาก่อนหรือเปล่า
-    Flutter ใช้ตัดสินใจว่าจะแสดงปุ่ม Retake หรือไม่
-    """
+    """GET /api/quiz/<quiz_id>/attempted — เช็คว่า user เคยทำ quiz นี้หรือยัง"""
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -93,16 +113,12 @@ def check_attempted(quiz_id):
                 return jsonify({'error': 'User not found'}), 404
 
             cur.execute(
-                '''SELECT COUNT(*) as cnt
-                   FROM quiz_attempts
-                   WHERE user_id = %s AND quiz_id = %s''',
+                'SELECT COUNT(*) as cnt FROM quiz_attempts WHERE user_id = %s AND quiz_id = %s',
                 (user['user_id'], quiz_id)
             )
-            result = cur.fetchone()
-            has_attempted = result['cnt'] > 0
+            has_attempted = cur.fetchone()['cnt'] > 0
 
         return jsonify({'has_attempted': has_attempted}), 200
-
     finally:
         conn.close()
 
@@ -113,7 +129,6 @@ def submit_quiz():
     """
     POST /api/quiz/submit
     รับคำตอบทั้งหมดหลังทำ Quiz เสร็จ
-    คำนวณ Accuracy, Speed, Understanding แล้วบันทึกลง DB
 
     Body JSON:
     {
@@ -134,8 +149,10 @@ def submit_quiz():
     time_spent = data.get('time_spent', 0)
     answers    = data.get('answers', [])
 
-    if not quiz_id or not answers:
-        return jsonify({'error': 'Missing quiz_id or answers'}), 400
+    # ADD: Input Validation
+    errors = _validate_submit(quiz_id, time_spent, answers)
+    if errors:
+        return jsonify({'error': errors}), 400
 
     conn = get_connection()
     try:
@@ -149,23 +166,25 @@ def submit_quiz():
                 return jsonify({'error': 'User not found'}), 404
             user_id = user['user_id']
 
-            cur.execute('''
+            cur.execute('''\
                 SELECT q.question_id, q.correct_choice, q.expected_time,
-                       q.quiz_id, qz.subject_id
+                       q.quiz_id, q.topic, qz.subject_id, s.subject_name
                 FROM questions q
                 JOIN quizzes qz ON q.quiz_id = qz.quiz_id
+                JOIN subjects s ON qz.subject_id = s.subject_id
                 WHERE q.quiz_id = %s
             ''', (quiz_id,))
             questions = {q['question_id']: q for q in cur.fetchall()}
 
-            score = 0
-            total = len(answers)
-            subject_id = None
+            score                = 0
+            total                = len(answers)
+            subject_id           = None
+            subject_name         = ''
             understanding_scores = []
+            speed_scores         = []
 
-            cur.execute('''
-                INSERT INTO quiz_attempts
-                (user_id, quiz_id, score, total, time_spent)
+            cur.execute('''\
+                INSERT INTO quiz_attempts (user_id, quiz_id, score, total, time_spent)
                 VALUES (%s, %s, %s, %s, %s)
             ''', (user_id, quiz_id, 0, total, time_spent))
             attempt_id = cur.lastrowid
@@ -180,9 +199,10 @@ def submit_quiz():
                 if not q_data:
                     continue
 
-                subject_id  = q_data['subject_id']
-                is_correct  = (selected == q_data['correct_choice'])
-                expected_t  = q_data['expected_time'] or 30
+                subject_id   = q_data['subject_id']
+                subject_name = q_data.get('subject_name', '')
+                is_correct   = (selected == q_data['correct_choice'])
+                expected_t   = q_data['expected_time'] or 30
 
                 if is_correct:
                     score += 1
@@ -191,8 +211,9 @@ def submit_quiz():
                 speed         = min(1.0, expected_t / max(response_time, 1))
                 understanding = calculate_understanding(accuracy, speed)
                 understanding_scores.append(understanding)
+                speed_scores.append(speed)
 
-                cur.execute('''
+                cur.execute('''\
                     INSERT INTO user_answers
                     (attempt_id, question_id, selected_choice,
                      is_correct, response_time, attempt_count)
@@ -206,20 +227,57 @@ def submit_quiz():
             )
 
             if subject_id and understanding_scores:
+                avg_speed = round(sum(speed_scores) / len(speed_scores), 4) \
+                            if speed_scores else 0.0
+
                 from progress_service import update_topic_analysis, update_progress
                 update_topic_analysis(cur, user_id, subject_id,
                                       understanding_scores, score, total,
-                                      time_spent)
+                                      avg_speed, subject_name)
                 update_progress(cur, user_id, understanding_scores)
 
             conn.commit()
 
+        logger.info('submit_quiz: user=%s quiz=%s score=%s/%s attempt=%s',
+                    g.firebase_uid[:8], quiz_id, score, total, attempt_id)
+
         return jsonify({
-            'attempt_id':  attempt_id,
-            'score':       score,
-            'total':       total,
-            'percentage':  round((score / total) * 100, 1) if total > 0 else 0,
+            'attempt_id': attempt_id,
+            'score':      score,
+            'total':      total,
+            'percentage': round((score / total) * 100, 1) if total > 0 else 0,
         }), 201
 
+    except Exception as e:
+        logger.error('submit_quiz error: user=%s quiz=%s error=%s',
+                     g.firebase_uid[:8], quiz_id, str(e))
+        conn.rollback()
+        raise
     finally:
         conn.close()
+
+
+# ── helpers ────────────────────────────────────────────────────────────────
+
+def _validate_submit(quiz_id, time_spent, answers):
+    """Validate quiz submit payload — คืน error string หรือ None"""
+    if not quiz_id or not isinstance(quiz_id, int):
+        return 'quiz_id is required and must be an integer'
+    if not isinstance(time_spent, (int, float)) or time_spent < 0:
+        return 'time_spent must be a non-negative number'
+    if not answers or not isinstance(answers, list):
+        return 'answers must be a non-empty list'
+    if len(answers) > 200:
+        return 'answers list too long (max 200)'
+
+    for i, ans in enumerate(answers):
+        if not isinstance(ans.get('question_id'), int):
+            return f'answers[{i}].question_id must be an integer'
+        if not isinstance(ans.get('selected_choice'), str) or \
+                ans['selected_choice'].upper() not in ('A', 'B', 'C', 'D'):
+            return f'answers[{i}].selected_choice must be A, B, C, or D'
+        rt = ans.get('response_time', 30)
+        if not isinstance(rt, (int, float)) or rt <= 0:
+            return f'answers[{i}].response_time must be a positive number'
+
+    return None

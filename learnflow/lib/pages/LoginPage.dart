@@ -1,4 +1,4 @@
-// lib/pages/LoginPage.dart  [UPDATED — เชื่อม API]
+// lib/pages/LoginPage.dart  [FIXED]
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -62,8 +62,16 @@ class _LoginPageState extends State<LoginPage> {
         final provider = GoogleAuthProvider()..addScope('email');
         cred = await FirebaseAuth.instance.signInWithPopup(provider);
       } else {
-        final googleUser = await GoogleSignIn().signIn();
-        if (googleUser == null) { setState(() => _isLoading = false); return; }
+        // FIX: signOut ก่อนเพื่อให้ Google account picker แสดงเสมอ
+        // หากไม่ทำ จะใช้ cached account เดิมโดยไม่ถาม และอาจ login บัญชีผิดได้
+        final googleSignIn = GoogleSignIn();
+        await googleSignIn.signOut();
+
+        final googleUser = await googleSignIn.signIn();
+        if (googleUser == null) {
+          setState(() => _isLoading = false);
+          return;
+        }
         final googleAuth = await googleUser.authentication;
         cred = await FirebaseAuth.instance.signInWithCredential(
           GoogleAuthProvider.credential(
@@ -72,11 +80,17 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
       }
-      // Sync user → MySQL
+      // Sync user → MySQL (upsert — ไม่ duplicate)
       final displayName = cred.user?.displayName ?? '';
       await AuthService.syncGoogleLogin(displayName);
 
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'account-exists-with-different-credential') {
+        _showSnack('This email is registered with email/password. Please use that to log in.');
+      } else {
+        _showSnack('Google sign-in failed: ${e.message}');
+      }
     } on ApiException catch (e) {
       // API error ไม่ block การเข้าแอป (user อยู่ใน Firebase แล้ว)
       debugPrint('API sync warning: ${e.message}');

@@ -1,5 +1,6 @@
-// lib/pages/SplashScreen.dart  [FIXED — ตรวจ Firebase session ก่อน navigate]
+// lib/pages/SplashScreen.dart  [FIXED — ใช้ authStateChanges แทน currentUser]
 
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,6 +17,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _logoController;
   late Animation<double> _logoScale;
   late Animation<double> _logoFade;
+  StreamSubscription<User?>? _authSub;
 
   @override
   void initState() {
@@ -37,27 +39,39 @@ class _SplashScreenState extends State<SplashScreen>
     _decideNavigation();
   }
 
-  // ── ตรวจสอบ Firebase session แล้วตัดสินใจว่าจะไปหน้าไหน ──────────────────
+  // FIX: ใช้ authStateChanges stream เพื่อรอให้ Firebase restore session จริงๆ
+  // currentUser อาจยัง null อยู่แม้มี session ถ้าตรวจเร็วเกินไปหลัง cold start
   Future<void> _decideNavigation() async {
-    // รอ animation logo เสร็จก่อน (อย่างน้อย 2 วินาที)
+    // รอ animation + Firebase init อย่างน้อย 2 วินาที
     await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    // ใช้ firstWhere บน authStateChanges เพื่อรอ Firebase emit state จริง
+    // timeout 3 วินาที ถ้า Firebase ช้ากว่านั้น ถือว่า logged out
+    User? user;
+    try {
+      user = await FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(const Duration(seconds: 3));
+    } catch (_) {
+      user = null;
+    }
 
     if (!mounted) return;
 
-    // ตรวจสอบว่ามี user login อยู่ใน Firebase หรือไม่
-    final User? currentUser = FirebaseAuth.instance.currentUser;
-
-    if (currentUser != null) {
-      // ✅ มี session อยู่ → ข้ามหน้า login/onboarding ไปที่ home เลย
+    if (user != null) {
+      // มี session อยู่ → ข้ามหน้า login ไปที่ home เลย
       Navigator.pushReplacementNamed(context, '/home');
     } else {
-      // ❌ ไม่มี session → ไป onboarding (ครั้งแรก) หรือ login
+      // ไม่มี session → ไป onboarding
       Navigator.pushReplacementNamed(context, '/onboarding');
     }
   }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _logoController.dispose();
     super.dispose();
   }
@@ -109,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-// ── Spinner (ไม่เปลี่ยน) ──────────────────────────────────────────────────────
+// ── Spinner ──────────────────────────────────────────────────────────────────
 
 class _GradientSpinner extends StatefulWidget {
   const _GradientSpinner();

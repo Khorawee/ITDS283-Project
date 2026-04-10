@@ -89,5 +89,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'leranflow-moblie.firebasestorage.app',
     measurementId: 'G-0WXKSTSKYN',
   );
-
 }
