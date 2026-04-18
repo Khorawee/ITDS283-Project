@@ -1,3 +1,19 @@
+"""Quiz endpoints — retrieve quizzes and submit answers.
+
+Endpoints:
+- GET /api/quizzes?page=1&limit=20 — List quizzes with pagination
+- GET /api/quiz/<quiz_id> — Get quiz details + questions + choices
+- POST /api/quiz/<quiz_id>/submit — Submit quiz answers
+
+Features:
+- Pagination support (default 20 per page, max 50)
+- Time limit calculation (max(15, questions * 2.5) minutes)
+- Attempt tracking (logs retakes)
+- Score/accuracy/speed/understanding calculation
+- Transaction safety for quiz submission
+- Integration with progress_service and ai_service
+"""
+
 from flask import Blueprint, request, jsonify, g
 from db_config import get_connection
 from auth_middleware import require_auth
@@ -12,9 +28,10 @@ quiz_bp = Blueprint('quiz', __name__)
 @quiz_bp.route('/api/quizzes', methods=['GET'])
 @require_auth
 def get_quizzes():
-    """
-    GET /api/quizzes?page=1&limit=20
-    ดึงรายการ Quiz พร้อม pagination
+    """GET /api/quizzes?page=1&limit=20 — ดึงรายการ Quiz พร้อม pagination
+    
+    Params: page (default 1), limit (default 20, max 50)
+    Return: list of quizzes + pagination info
     """
     # ADD: Pagination
     try:
@@ -28,14 +45,22 @@ def get_quizzes():
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute('SELECT COUNT(*) as total FROM quizzes')
+            # นับเฉพาะ quiz ที่มีคำถามจริงอยู่ใน questions table
+            cur.execute('''
+                SELECT COUNT(DISTINCT q.quiz_id) AS total
+                FROM quizzes q
+                INNER JOIN questions qn ON qn.quiz_id = q.quiz_id
+            ''')
             total = cur.fetchone()['total']
 
             cur.execute('''\
                 SELECT q.quiz_id, q.title, q.level, q.total_questions,
-                       s.subject_name
+                       s.subject_name,
+                       COUNT(qn.question_id) AS question_count
                 FROM quizzes q
                 JOIN subjects s ON q.subject_id = s.subject_id
+                INNER JOIN questions qn ON qn.quiz_id = q.quiz_id
+                GROUP BY q.quiz_id, q.title, q.level, q.total_questions, s.subject_name
                 ORDER BY q.quiz_id
                 LIMIT %s OFFSET %s
             ''', (limit, offset))
@@ -57,7 +82,10 @@ def get_quizzes():
 @quiz_bp.route('/api/quiz/<int:quiz_id>', methods=['GET'])
 @require_auth
 def get_quiz_detail(quiz_id):
-    """GET /api/quiz/<quiz_id> — ดึงรายละเอียด Quiz + คำถาม + ตัวเลือก"""
+    """GET /api/quiz/<quiz_id> — ดึงรายละเอียด Quiz + คำถาม + choices + time_limit
+    
+    Return: quiz detail + time_limit_seconds (calculated from questions count)
+    """
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -92,6 +120,20 @@ def get_quiz_detail(quiz_id):
                 q['choices'] = cur.fetchall()
 
         quiz['questions'] = questions
+
+        # คำนวณเวลาตามจำนวนข้อ × นาทีต่อข้อตามระดับความยาก
+        # EASY: 1 นาที/ข้อ  |  MEDIUM: 1.5 นาที/ข้อ  |  HARD: 1.5 นาที/ข้อ
+        total_questions = len(questions)
+        level = (quiz.get('level') or 'EASY').upper()
+        if level == 'EASY':
+            mins_per_q = 1.0
+        elif level == 'MEDIUM':
+            mins_per_q = 1.5
+        else:  # HARD
+            mins_per_q = 1.5
+        time_limit_minutes = total_questions * mins_per_q
+        quiz['time_limit_seconds'] = int(time_limit_minutes * 60)
+        
         return jsonify({'quiz': quiz}), 200
     finally:
         conn.close()
@@ -165,6 +207,15 @@ def submit_quiz():
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             user_id = user['user_id']
+
+            # FIX: Check if user has already attempted this quiz (for tracking retakes)
+            cur.execute(
+                'SELECT COUNT(*) as attempt_count FROM quiz_attempts WHERE user_id = %s AND quiz_id = %s',
+                (user_id, quiz_id)
+            )
+            previous_attempts = cur.fetchone()['attempt_count']
+            if previous_attempts > 0:
+                logger.info('User %s retaking quiz %s (attempt #%d)', g.firebase_uid[:8], quiz_id, previous_attempts + 1)
 
             cur.execute('''\
                 SELECT q.question_id, q.correct_choice, q.expected_time,

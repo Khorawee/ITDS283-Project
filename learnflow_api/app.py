@@ -1,3 +1,13 @@
+"""Flask app factory — main entry point for LearnFlow API.
+
+Setup:
+- Initializes Firebase authentication
+- Sets up global rate limiting (Flask-Limiter)
+- Registers all route blueprints (auth, quiz, analysis, etc.)
+- Configures CORS and database connection pooling
+- Provides health check endpoint
+"""
+
 import sys
 import os
 import logging
@@ -23,9 +33,19 @@ from analysis import analysis_bp
 from recommendation import recommendation_bp
 from profile import profile_bp
 
+# ADD: Global limiter instance — so blueprints can use it
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri='memory://',
+)
+
 
 def setup_logging():
-    """ตั้งค่า logging กลาง — INFO ขึ้นไปแสดงใน console พร้อม timestamp"""
+    """ตั้งค่า logging กลาง — INFO ขึ้นไปแสดงใน console พร้อม timestamp
+    
+    ตัวอย่าง: [2025-04-18 10:30:45] INFO auth: Login successful
+    """
     logging.config.dictConfig({
         'version': 1,
         'disable_existing_loggers': False,
@@ -49,19 +69,14 @@ def setup_logging():
 
 
 def create_app():
+    """สร้าง Flask app instance พร้อม setup Firebase, CORS, Rate Limiting, DB Pooling"""
     setup_logging()
     logger = logging.getLogger(__name__)
 
     app = Flask(__name__)
 
-    # ADD: Rate Limiting — ป้องกัน submit ซ้ำเร็วเกิน
-    limiter = Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=[],           # ไม่ limit ทุก endpoint โดย default
-        storage_uri='memory://',     # dev ใช้ memory, production เปลี่ยนเป็น redis://
-    )
-    app.extensions['limiter'] = limiter  # เก็บไว้ให้ blueprint เรียกใช้ได้
+    # Init global limiter with app
+    limiter.init_app(app)
 
     # CORS
     allowed_origins = os.getenv('CORS_ORIGINS', '*')

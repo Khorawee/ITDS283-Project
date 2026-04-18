@@ -1,18 +1,33 @@
+"""Firebase authentication middleware — verify ID tokens on protected endpoints.
+
+Features:
+- Extracts Firebase ID Token from Authorization header
+- Verifies token with Firebase Admin SDK
+- Sets g.firebase_uid and g.email for use in endpoints
+- Handles token expiry and invalid token errors
+- Generic error messages (no internal details leaked)
+
+Usage:
+    @app.route('/api/protected')
+    @require_auth
+    def protected_endpoint():
+        user_id = g.firebase_uid
+        email = g.email
+"""
+
 from functools import wraps
 from flask import request, jsonify, g
 from firebase_admin import auth
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def require_auth(f):
-    """
-    Decorator สำหรับ verify Firebase ID Token
-    ใช้ใส่หน้า endpoint ที่ต้องการให้ user login ก่อน
-
-    ตัวอย่างใช้งาน:
-        @app.route('/api/profile')
-        @require_auth
-        def get_profile():
-            user_id = g.user_id  # ดึง user_id ที่ verify แล้ว
+    """Decorator — verify Firebase ID Token จาก Authorization header
+    
+    Set: g.firebase_uid, g.email สำหรับใช้ใน endpoint
+    Return 401 ถ้า token ไม่ valid หรือ expired
     """
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -33,7 +48,9 @@ def require_auth(f):
         except auth.InvalidIdTokenError:
             return jsonify({'error': 'Invalid token'}), 401
         except Exception as e:
-            return jsonify({'error': str(e)}), 401
+            # FIX: Don't expose internal error details
+            logger.error('Token verification failed: %s', str(e))
+            return jsonify({'error': 'Authentication failed'}), 401
 
         return f(*args, **kwargs)
     return decorated

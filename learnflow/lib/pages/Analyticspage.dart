@@ -1,6 +1,7 @@
-// lib/pages/Analyticspage.dart  [FIXED UI]
-// แก้: time filter ส่ง days param ไปหา AnalyticsService จริง
-// แก้: ใช้ LearnFlowBottomNav กลาง
+// lib/pages/Analyticspage.dart
+// FIX: Growth chart แสดงข้อมูลทั้งหมด (all-time) จาก /api/growth
+//      ลบ time filter ออกจาก Growth card
+//      แก้ label x-axis ติดกัน — แสดงแค่บางจุด
 
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -18,7 +19,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   static const Color bgColor      = Color(0xFF9DE8C0);
   static const Color cardColor    = Colors.white;
 
-  // FIX: map filter label → จำนวนวันจริง
   static const _timeOptions = [
     {'label': 'TODAY', 'days': 1},
     {'label': '7 DAY',  'days': 7},
@@ -26,20 +26,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     {'label': '30 DAY', 'days': 30},
   ];
 
-  int _selectedTime = 1; // index ใน _timeOptions
+  int _selectedTime = 1;
 
-  bool _isLoading = true;
-  List<Map<String, dynamic>> _barData   = [];
-  List<Map<String, dynamic>> _lineData  = [];
-  Map<String, dynamic>       _radarData = {};
+  bool _isLoading       = true;
+  bool _isGrowthLoading = true;
+
+  List<Map<String, dynamic>> _barData    = [];
+  Map<String, dynamic>       _radarData  = {};
+
+  // FIX: Growth data แยกต่างหาก — all-time
+  List<Map<String, dynamic>> _growthData = [];
 
   @override
   void initState() {
     super.initState();
     _loadDashboard();
+    _loadGrowth();   // FIX: โหลด growth แยก
   }
 
-  // FIX: ส่ง days ไปด้วย
   Future<void> _loadDashboard() async {
     setState(() => _isLoading = true);
     try {
@@ -47,12 +51,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       final data = await AnalyticsService.getDashboard(days: days);
       setState(() {
         _barData   = List<Map<String, dynamic>>.from(data['bar_chart']  ?? []);
-        _lineData  = List<Map<String, dynamic>>.from(data['line_chart'] ?? []);
         _radarData = Map<String, dynamic>.from(data['radar_chart']      ?? {});
         _isLoading = false;
       });
     } catch (_) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  // FIX: โหลด growth ทั้งหมด ไม่ขึ้นกับ time filter
+  Future<void> _loadGrowth() async {
+    setState(() => _isGrowthLoading = true);
+    try {
+      final data = await AnalyticsService.getGrowth();
+      setState(() {
+        _growthData     = List<Map<String, dynamic>>.from(data['growth'] ?? []);
+        _isGrowthLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isGrowthLoading = false);
     }
   }
 
@@ -64,22 +81,32 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
-  List<FlSpot> get _lineSpots {
-    if (_lineData.isEmpty) {
-      return List.generate(7, (i) => FlSpot(i.toDouble(), 0));
-    }
-    return _lineData.asMap().entries.map((e) {
+  // FIX: prepend origin (0,0) เสมอ ให้กราฟเริ่มที่ 0 และเห็นการเปลี่ยนแปลง
+  List<FlSpot> get _growthSpots {
+    const origin = FlSpot(0, 0);
+    if (_growthData.isEmpty) return [origin, const FlSpot(1, 0)];
+    final dataSpots = _growthData.asMap().entries.map((e) {
       final val = (e.value['avg_understanding'] ?? 0).toDouble();
-      return FlSpot(e.key.toDouble(), val);
+      return FlSpot((e.key + 1).toDouble(), val); // +1 เพราะ index 0 = origin
     }).toList();
+    return [origin, ...dataSpots];
   }
 
-  List<String> get _lineLabels {
-    if (_lineData.isEmpty) return List.generate(7, (i) => 'Day${i + 1}');
-    return _lineData.map((d) {
-      final date = d['date']?.toString() ?? '';
-      return date.length >= 10 ? date.substring(5) : date;
-    }).toList();
+  // FIX: label สำหรับ x-axis — idx 0 = origin (ไม่มี label), idx 1+ = data
+  String? _growthLabel(int idx) {
+    if (idx == 0) return ''; // origin ไม่แสดง label
+    final dataIdx = idx - 1; // แปลงกลับ index ใน _growthData
+    final total = _growthData.length;
+    if (total == 0 || dataIdx >= total) return null;
+
+    int step = 1;
+    if (total > 7)  step = (total / 5).ceil();
+    if (total > 20) step = (total / 5).ceil();
+
+    if (dataIdx % step != 0 && dataIdx != total - 1) return null; // ซ่อน
+
+    final raw = _growthData[dataIdx]['label']?.toString() ?? '';
+    return raw;
   }
 
   @override
@@ -108,7 +135,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         Expanded(child: _buildMasteryCard()),
                       ]),
                       const SizedBox(height: 12),
-                      _buildGrowthCard(),
+                      _buildGrowthCard(),   // FIX: ไม่ขึ้นกับ time filter แล้ว
                       const SizedBox(height: 12),
                       Row(children: [
                         Expanded(child: _buildDonutCard()),
@@ -119,7 +146,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     ]),
                   ),
           ),
-          // FIX: ใช้ widget กลาง
           const LearnFlowBottomNav(selectedIndex: 2),
         ]),
       ),
@@ -149,7 +175,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               final isSelected = _selectedTime == index;
               return Expanded(
                 child: GestureDetector(
-                  // FIX: reload พร้อม days ใหม่
                   onTap: () {
                     setState(() => _selectedTime = index);
                     _loadDashboard();
@@ -202,8 +227,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                   Text(name,
                       style: const TextStyle(fontSize: 11,
@@ -256,78 +280,133 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
+  // FIX: Growth card — แสดง all-time, ไม่มี time badge, label ไม่ติดกัน
   Widget _buildGrowthCard() {
-    final spots  = _lineSpots;
-    final labels = _lineLabels;
+    final spots = _growthSpots;
+    final total = _growthData.length;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
           color: cardColor, borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           const Text('Growth',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16,
                   color: Colors.black87)),
+          // FIX: แสดง "ALL TIME" badge แทน time filter
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[300]!),
+                color: primaryGreen.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8)),
             child: Text(
-              '${_timeOptions[_selectedTime]['label']}',
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
+              total > 0 ? '$total sessions' : 'ALL TIME',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: primaryGreen),
             ),
           ),
         ]),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 160,
-          child: LineChart(LineChartData(
-            gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                getDrawingHorizontalLine: (v) =>
-                    FlLine(color: Colors.grey[200]!, strokeWidth: 1)),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(sideTitles: SideTitles(
-                  showTitles: true, reservedSize: 36,
-                  getTitlesWidget: (v, m) => Text(
-                      '${(v * 100).toInt()}%',
-                      style: const TextStyle(fontSize: 9,
-                          color: Colors.black38)))),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(
-                  showTitles: true,
-                  getTitlesWidget: (v, m) {
-                    final idx = v.toInt();
-                    if (idx < 0 || idx >= labels.length) {
-                      return const SizedBox();
-                    }
-                    return Text(labels[idx],
-                        style: const TextStyle(fontSize: 9,
-                            color: Colors.black38));
-                  })),
-              topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
+
+        // FIX: ถ้ายังโหลดอยู่
+        if (_isGrowthLoading)
+          const SizedBox(
+            height: 160,
+            child: Center(
+                child: CircularProgressIndicator(color: primaryGreen)),
+          )
+        // FIX: ยังไม่มีข้อมูลเลย
+        else if (_growthData.isEmpty)
+          SizedBox(
+            height: 120,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.bar_chart_rounded,
+                    size: 40, color: primaryGreen.withOpacity(0.3)),
+                const SizedBox(height: 8),
+                const Text(
+                  'Complete a quiz to see your growth!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.black38),
+                ),
+              ],
             ),
-            borderData: FlBorderData(show: false),
-            minY: 0, maxY: 1.0,
-            lineBarsData: [LineChartBarData(
-              spots: spots, isCurved: true,
-              color: primaryGreen, barWidth: 2.5,
-              dotData: FlDotData(show: true,
-                  getDotPainter: (s, p, b, i) => FlDotCirclePainter(
-                      radius: 3, color: primaryGreen,
-                      strokeColor: Colors.white, strokeWidth: 1.5)),
-              belowBarData: BarAreaData(
+          )
+        else
+          SizedBox(
+            height: 160,
+            child: LineChart(LineChartData(
+              gridData: FlGridData(
                   show: true,
-                  color: primaryGreen.withOpacity(0.1)),
-            )],
-          )),
-        ),
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (v) =>
+                      FlLine(color: Colors.grey[200]!, strokeWidth: 1)),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 36,
+                    interval: 0.2,
+                    getTitlesWidget: (v, m) => Text(
+                        '${(v * 100).toInt()}%',
+                        style: const TextStyle(
+                            fontSize: 9, color: Colors.black38)))),
+                bottomTitles: AxisTitles(sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    getTitlesWidget: (v, m) {
+                      final idx = v.toInt();
+                      // spots[0] = origin, spots[1+] = data
+                      if (idx < 0 || idx > _growthData.length) {
+                        return const SizedBox();
+                      }
+                      final label = _growthLabel(idx);
+                      if (label == null || label.isEmpty) return const SizedBox();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(label,
+                            style: const TextStyle(
+                                fontSize: 9, color: Colors.black38)),
+                      );
+                    })),
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: false),
+              minX: 0, minY: 0, maxY: 1.0,
+              lineBarsData: [LineChartBarData(
+                spots: spots,
+                isCurved: true,
+                color: primaryGreen,
+                barWidth: 2.5,
+                dotData: FlDotData(
+                  show: true,
+                  getDotPainter: (s, p, b, i) {
+                    // ซ่อน dot ที่ origin (index 0)
+                    if (i == 0) {
+                      return FlDotCirclePainter(
+                          radius: 0,
+                          color: Colors.transparent,
+                          strokeColor: Colors.transparent);
+                    }
+                    return FlDotCirclePainter(
+                        radius: 3,
+                        color: primaryGreen,
+                        strokeColor: Colors.white,
+                        strokeWidth: 1.5);
+                  },
+                ),
+                belowBarData: BarAreaData(
+                    show: true,
+                    color: primaryGreen.withOpacity(0.1)),
+              )],
+            )),
+          ),
       ]),
     );
   }
@@ -405,7 +484,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 BorderSide(color: Colors.grey[300]!, width: 1),
             gridBorderData: BorderSide(color: Colors.grey[200]!, width: 1),
             tickBorderData: BorderSide(color: Colors.grey[200]!, width: 1),
-            titleTextStyle: const TextStyle(fontSize: 10, color: Colors.black54),
+            titleTextStyle:
+                const TextStyle(fontSize: 10, color: Colors.black54),
             getTitle: (index, angle) {
               const titles = ['Accuracy', 'Speed', 'Mastery'];
               return RadarChartTitle(text: titles[index], angle: angle);

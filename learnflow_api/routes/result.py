@@ -1,3 +1,15 @@
+"""Result endpoint — retrieve quiz attempt results.
+
+Endpoints:
+- GET /api/result/<attempt_id> — ดึงผลลัพธ์ quiz attempt
+
+Features:
+- Grade calculation (A/B/C)
+- Badge emoji (EXCELLENT/GOOD/KEEP TRYING)
+- Performance breakdown (accuracy, speed, understanding)
+- Quiz metadata (title, subject)
+"""
+
 from flask import Blueprint, jsonify, g
 from db_config import get_connection
 from auth_middleware import require_auth

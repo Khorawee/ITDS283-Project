@@ -1,3 +1,17 @@
+"""Analytics endpoints — dashboard and growth charts data.
+
+Endpoints:
+- GET /api/dashboard?days=7 — Get topic mastery, accuracy, speed, all-time stats
+- GET /api/growth — Get all-time progress for growth chart
+- GET /api/analysis — Get topic mastery all-time
+
+Features:
+- Input validation (days parameter 1-365)
+- Efficient database queries with JOINs
+- Radar chart calculations (3-decimal rounding)
+- Bar chart data for topic mastery
+"""
+
 from flask import Blueprint, jsonify, g, request
 from db_config import get_connection
 from auth_middleware import require_auth
@@ -8,7 +22,10 @@ analysis_bp = Blueprint('analysis', __name__)
 @analysis_bp.route('/api/analysis', methods=['GET'])
 @require_auth
 def get_analysis():
-    """GET /api/analysis — ดึงผลวิเคราะห์ Topic Mastery รายวิชา"""
+    """GET /api/analysis — ดึง topic mastery รายวิชา (all-time)
+    
+    Return: list of topics with accuracy, speed, understanding, mastery scores
+    """
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -41,15 +58,18 @@ def get_analysis():
 def get_dashboard():
     """
     GET /api/dashboard?days=7
-    FIX: รับ days query param เพื่อให้ time filter ใน AnalyticsPage ทำงานจริง
-    ค่า default = 7 วัน
+    Line chart ใช้ days จาก query param
+    Bar / Radar / Recommendations ไม่เปลี่ยน (all-time)
+    FIX: Add comprehensive input validation
     """
-    # FIX: รับ days จาก query string ตรวจสอบ range 1-30
     try:
         days = int(request.args.get('days', 7))
-        days = max(1, min(30, days))
-    except ValueError:
-        days = 7
+        # FIX: Validate days range properly
+        if days < 1 or days > 365:
+            return jsonify({'error': 'Days must be between 1 and 365'}), 400
+        days = max(1, min(365, days))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid days parameter'}), 400
 
     conn = get_connection()
     try:
@@ -64,7 +84,7 @@ def get_dashboard():
 
             user_id = user['user_id']
 
-            # Bar Chart: Topic Mastery รายวิชา
+            # Bar Chart: Topic Mastery รายวิชา (all-time)
             cur.execute('''\
                 SELECT s.subject_name, ta.mastery, ta.level
                 FROM topic_analysis ta
@@ -74,17 +94,17 @@ def get_dashboard():
             ''', (user_id,))
             bar_data = cur.fetchall()
 
-            # FIX: Line Chart ใช้ days จริงแทน hardcode 6
+            # Line Chart: กรองตาม days
             cur.execute('''\
                 SELECT date, avg_understanding
                 FROM progress
                 WHERE user_id = %s
-                AND date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                  AND date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
                 ORDER BY date ASC
             ''', (user_id, days - 1))
             line_data = cur.fetchall()
 
-            # Radar Chart
+            # Radar Chart (all-time)
             cur.execute('''\
                 SELECT AVG(accuracy) as avg_accuracy,
                        AVG(speed)    as avg_speed,
@@ -99,7 +119,7 @@ def get_dashboard():
                 'mastery':  round(radar_raw['avg_mastery']  or 0, 3),
             }
 
-            # Recommendations รวมมาใน dashboard
+            # Recommendations (all-time)
             cur.execute('''\
                 SELECT r.rec_id, r.topic, r.action, r.mastery,
                        s.subject_name, r.created_at
@@ -116,7 +136,48 @@ def get_dashboard():
             'line_chart':      line_data,
             'radar_chart':     radar_data,
             'recommendations': recommendations,
-            'days':            days,   # ส่งกลับไปให้ Flutter รู้ว่า filter อะไรอยู่
+            'days':            days,
+        }), 200
+
+    finally:
+        conn.close()
+
+
+# FIX: endpoint ใหม่สำหรับ Growth chart — ดึง progress ทุก session all-time
+@analysis_bp.route('/api/growth', methods=['GET'])
+@require_auth
+def get_growth():
+    """
+    GET /api/growth
+    ดึง progress ทั้งหมดที่เคยทำ ไม่จำกัดวัน
+    ใช้สำหรับ Growth chart ใน Analytics page
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                'SELECT user_id FROM users WHERE firebase_uid = %s',
+                (g.firebase_uid,)
+            )
+            user = cur.fetchone()
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+
+            # ดึง progress ทุกวันที่เคยทำ เรียงตามวันที่
+            cur.execute('''\
+                SELECT
+                    DATE_FORMAT(date, '%%d/%%m') AS label,
+                    date,
+                    avg_understanding
+                FROM progress
+                WHERE user_id = %s
+                ORDER BY date ASC
+            ''', (user['user_id'],))
+            growth_data = cur.fetchall()
+
+        return jsonify({
+            'growth': growth_data,
+            'total_sessions': len(growth_data),
         }), 200
 
     finally:

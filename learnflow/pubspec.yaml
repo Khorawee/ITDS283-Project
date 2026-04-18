@@ -26,6 +26,8 @@ dependencies:
 
   # 💾 Local cache
   shared_preferences: ^2.2.3
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
   # 🔔 Local Notifications
   flutter_local_notifications: ^17.2.4
@@ -48,3 +50,5 @@ flutter:
     - assets/images/Eng.png
     - assets/images/dev1.png
     - assets/images/dev2.png
+    - assets/images/Social_Studies.png
+    - assets/images/Programming.png

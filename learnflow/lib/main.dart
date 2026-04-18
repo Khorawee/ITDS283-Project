@@ -1,9 +1,18 @@
-// lib/main.dart  [UPDATED — renamed page imports + updated routes]
+/// lib/main.dart
+/// App entry point — LearnFlow Flutter application
+/// 
+/// Setup:
+/// - Firebase initialization
+/// - Local storage (Hive) for offline quiz caching
+/// - Notification service
+/// - Multi-language support (Thai/English)
+/// - Global locale state management
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
+import 'services/local_storage_service.dart';
 
 import 'pages/SplashScreen.dart';
 import 'pages/OnboardingScreen.dart';
@@ -20,13 +29,17 @@ import 'pages/Analyticspage.dart';
 import 'pages/Profilepage.dart';
 import 'pages/Reminderpage.dart';
 
+/// ตั้งค่า app เริ่มต้น: Firebase, LocalStorage, Notifications
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase
+  // Firebase authentication + Firestore
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Local storage initialization
+  await LocalStorageService.init();
 
   // Notification service
   await NotificationService.init();
@@ -55,6 +68,7 @@ class LearnFlowApp extends StatefulWidget {
 class _LearnFlowAppState extends State<LearnFlowApp> {
   Locale _locale = const Locale('en');
 
+  /// เปลี่ยน locale ของทั้ง app (Thai/English)
   void _changeLocale(Locale locale) {
     setState(() => _locale = locale);
   }

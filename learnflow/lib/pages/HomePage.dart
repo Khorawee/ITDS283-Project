@@ -64,16 +64,22 @@ class _HomePageState extends State<HomePage> {
     switch (subject.toUpperCase()) {
       case 'MATHEMATICS': return Icons.calculate_outlined;
       case 'ENGLISH':     return Icons.menu_book_outlined;
-      case 'SCIENCE':     return Icons.science_outlined;
       default:            return Icons.quiz_outlined;
     }
   }
 
   String? _subjectImageAsset(String subject) {
-    switch (subject.toUpperCase()) {
-      case 'MATHEMATICS': case 'MATH': return 'assets/images/math.png';
-      case 'ENGLISH':                  return 'assets/images/Eng.png';
-      default:                         return null;
+  switch (subject.toUpperCase()) {
+    case 'MATHEMATICS': 
+      return 'assets/images/math.png';
+    case 'ENGLISH':     
+      return 'assets/images/Eng.png';
+    case 'SOCIAL STUDIES':  
+      return 'assets/images/Social_Studies.png';
+    case 'PROGRAMMING':     
+      return 'assets/images/Programming.png';
+    default:            
+      return null;
     }
   }
 

@@ -1,5 +1,15 @@
-// lib/pages/Profilepage.dart  [FIXED UI]
+/// lib/pages/Profilepage.dart
+/// หน้าแสดงผล Profile ของ User
+/// 
+/// Features:
+/// - Display user profile info + quiz stats
+/// - Edit profile dialog with validation
+/// - Settings: notifications, language, learning mode
+/// - Refresh on app resume (WidgetsBindingObserver)
+/// - Logout functionality
+
 import 'package:flutter/material.dart';
+import 'dart:developer' as dev;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/notification_service.dart';
 import '../services/profile_service.dart';
@@ -13,13 +23,13 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   static const Color primaryGreen = Color(0xFF1DBA78);
   static const Color cardGreen    = Color(0xFF81E3AB);
   static const Color bgColor      = Color(0xFFF0FBF4);
 
   bool   _notifications    = true;
-  String _preferredSubject = 'Computer';
+  String _preferredSubject = 'Mathematics';
   String _learningMode     = 'Normal';
 
   Map<String, dynamic> _profile = {};
@@ -28,16 +38,44 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadProfile();
+    
+    // Ensure data is fresh after first frame for updated scores
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadProfile();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadProfile();
+    }
   }
 
   Future<void> _loadProfile() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final data = await ProfileService.getProfile();
-      setState(() { _profile = data; _isLoading = false; });
-    } catch (_) {
-      setState(() => _isLoading = false);
+      dev.log('[Profile] API response: $data', name: 'ProfilePage');
+      if (mounted) {
+        setState(() { _profile = data; _isLoading = false; });
+      }
+    } catch (e) {
+      dev.log('[Profile] ERROR loading profile: $e', name: 'ProfilePage');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -59,7 +97,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String get _grade => _profile['grade'] ?? '-';
 
-  // FIX: แปลง String → double อย่างปลอดภัย
   double get _avgScore {
     final val = _profile['avg_score'];
     if (val == null) return 0.0;
@@ -144,6 +181,30 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           ElevatedButton(
             onPressed: () {
+              // FIX: Add input validation
+              final first = firstCtrl.text.trim();
+              final last = lastCtrl.text.trim();
+
+              if (first.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('First name is required'),
+                    backgroundColor: Color(0xFFE74C3C),
+                  ),
+                );
+                return;
+              }
+
+              if (first.length > 100 || last.length > 100) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Names must be 100 characters or less'),
+                    backgroundColor: Color(0xFFE74C3C),
+                  ),
+                );
+                return;
+              }
+
               setState(() {
                 _profile['first_name'] = firstCtrl.text.trim();
                 _profile['last_name']  = lastCtrl.text.trim();
@@ -185,7 +246,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _showSubjectDialog() {
     _showRadioDialog('Preferred subjects',
-        ['Computer', 'Math', 'English', 'Science', 'Physics'],
+        ['Mathematics', 'English', 'Social Studies', 'Programming'],
         _preferredSubject,
         (val) => setState(() => _preferredSubject = val));
   }
@@ -344,56 +405,85 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildMetricsCard() {
-    // FIX: parse total_quizzes อย่างปลอดภัย
+    if (_isLoading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(14)),
+        child: const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: CircularProgressIndicator(color: primaryGreen, strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
     final totalQuizzesInt = int.tryParse(_totalQuizzes) ?? 0;
 
-    final metrics = [
-      {'label': 'Average total score',
-       'value': (_avgScore / 100).clamp(0.0, 1.0)},
-      {'label': 'Quizzes completed',
-       'value': (totalQuizzesInt / 100).clamp(0.0, 1.0)},
-    ];
+    // avgScore จาก API เป็น 0–100 แล้ว (backend round * 100 ไปแล้ว)
+    // หาร 100 เพื่อให้ LinearProgressIndicator ได้ค่า 0.0–1.0
+    final avgValue = (_avgScore / 100).clamp(0.0, 1.0);
+
+    // Quizzes: แสดงสัดส่วนจริงของจำนวน quiz ที่ทำ
+    // ใช้ progress bar แบบ open-ended: cap ที่ 20 = เต็ม 100%
+    final quizValue = (totalQuizzesInt / 20).clamp(0.0, 1.0);
+
+    Color barColor(double v) {
+      final pct = (v * 100).toInt();
+      if (pct >= 70) return primaryGreen;
+      if (pct >= 50) return const Color(0xFFF0B429);
+      return const Color(0xFFE74C3C);
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
           color: Colors.white, borderRadius: BorderRadius.circular(14)),
-      child: Column(
-        children: metrics.map((m) {
-          final value    = (m['value'] as double).clamp(0.0, 1.0);
-          final pct      = (value * 100).toInt();
-          final barColor = pct >= 70
-              ? primaryGreen
-              : pct >= 50
-                  ? const Color(0xFFF0B429)
-                  : const Color(0xFFE74C3C);
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(m['label'] as String,
-                    style: const TextStyle(fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87)),
-                Text('$pct%',
-                    style: const TextStyle(fontSize: 11,
-                        color: Colors.black45)),
-              ]),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: value, minHeight: 7,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
-                ),
-              ),
-            ]),
-          );
-        }).toList(),
-      ),
+      child: Column(children: [
+        _metricRow(
+          label: 'Average total score',
+          trailing: '${_avgScore.toStringAsFixed(1)}%',
+          value: avgValue,
+          color: barColor(avgValue),
+        ),
+        const SizedBox(height: 14),
+        _metricRow(
+          label: 'Quizzes completed',
+          trailing: '$totalQuizzesInt quiz',
+          value: quizValue,
+          color: barColor(quizValue),
+        ),
+      ]),
     );
+  }
+
+  Widget _metricRow({
+    required String label,
+    required String trailing,
+    required double value,
+    required Color color,
+  }) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.bold,
+                color: Colors.black87)),
+        Text(trailing,
+            style: const TextStyle(fontSize: 11, color: Colors.black45)),
+      ]),
+      const SizedBox(height: 6),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: LinearProgressIndicator(
+          value: value,
+          minHeight: 7,
+          backgroundColor: Colors.grey.shade200,
+          valueColor: AlwaysStoppedAnimation<Color>(color),
+        ),
+      ),
+    ]);
   }
 
   Widget _buildSettingsCard() {

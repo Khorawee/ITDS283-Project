@@ -36,7 +36,21 @@ class _QuizPageState extends State<QuizPage> {
     setState(() { _isLoading = true; _error = null; });
     try {
       final quizzes = await QuizService.getQuizzes();
-      setState(() { _quizzes = quizzes; _isLoading = false; });
+
+      // เก็บเฉพาะ subject/difficulty ที่ยังมีอยู่จริงใน quiz ที่โหลดมา
+      final validSubjects = quizzes
+          .map((q) => (q['subject_name'] ?? '').toString().toUpperCase())
+          .toSet();
+      final validDifficulties = quizzes
+          .map((q) => (q['level'] ?? '').toString().toUpperCase())
+          .toSet();
+
+      setState(() {
+        _quizzes = quizzes;
+        _selectedSubjects     = _selectedSubjects.intersection(validSubjects);
+        _selectedDifficulties = _selectedDifficulties.intersection(validDifficulties);
+        _isLoading = false;
+      });
     } catch (_) {
       setState(() { _error = 'Failed to load quizzes'; _isLoading = false; });
     }
@@ -66,20 +80,56 @@ class _QuizPageState extends State<QuizPage> {
   bool get _hasActiveFilters =>
       _selectedSubjects.isNotEmpty || _selectedDifficulties.isNotEmpty;
 
+  // ดึง subjects ที่มีจริงใน quiz data
+  List<String> get _availableSubjects => _quizzes
+      .map((q) => (q['subject_name'] ?? '').toString().toUpperCase())
+      .toSet()
+      .toList()
+    ..sort();
+
+  // ดึง difficulties ที่มีจริงใน quiz data (เรียงลำดับ EASY → MEDIUM → HARD)
+  List<String> get _availableDifficulties {
+    const order = ['EASY', 'MEDIUM', 'HARD'];
+    final found = _quizzes
+        .map((q) => (q['level'] ?? '').toString().toUpperCase())
+        .toSet();
+    return order.where((d) => found.contains(d)).toList();
+  }
+
+  // config สีของแต่ละ difficulty
+  Map<String, dynamic> _difficultyConfig(String level) {
+    switch (level) {
+      case 'EASY':
+        return {'color': const Color(0xFF27AE60), 'bg': const Color(0xFFE8F8F0)};
+      case 'MEDIUM':
+        return {'color': const Color(0xFFF39C12), 'bg': const Color(0xFFFEF9E7)};
+      case 'HARD':
+        return {'color': const Color(0xFFE74C3C), 'bg': const Color(0xFFFDECEA)};
+      default:
+        return {'color': const Color(0xFF7F8C8D), 'bg': const Color(0xFFF2F3F4)};
+    }
+  }
+
   IconData _subjectIcon(String subject) {
     switch (subject.toUpperCase()) {
       case 'MATHEMATICS': return Icons.calculate_outlined;
       case 'ENGLISH':     return Icons.menu_book_outlined;
-      case 'SCIENCE':     return Icons.science_outlined;
       default:            return Icons.quiz_outlined;
     }
   }
 
   String? _subjectImageAsset(String subject) {
-    switch (subject.toUpperCase()) {
-      case 'MATHEMATICS': return 'assets/images/math.png';
-      case 'ENGLISH':     return 'assets/images/Eng.png';
-      default:            return null;
+  switch (subject.toUpperCase()) {
+    case 'MATHEMATICS': 
+      return 'assets/images/math.png';
+    case 'ENGLISH':     
+      return 'assets/images/Eng.png';
+    case 'SOCIAL STUDIES':  
+      return 'assets/images/Social_Studies.png';
+    case 'PROGRAMMING':     
+      return 'assets/images/Programming.png';
+    default:            
+      return null;
     }
   }
 
@@ -160,43 +210,35 @@ class _QuizPageState extends State<QuizPage> {
               const SizedBox(height: 10),
               Wrap(
                 spacing: 10,
-                children: ['MATHEMATICS', 'ENGLISH', 'SCIENCE'].map((s) =>
-                  _buildFilterChip(
-                    label: s,
-                    icon: _subjectIcon(s),
-                    isSelected: tempSubjects.contains(s),
-                    onTap: () => setModalState(() => tempSubjects.contains(s)
-                        ? tempSubjects.remove(s)
-                        : tempSubjects.add(s)),
-                  ),
-                ).toList(),
+                children: _availableSubjects.map((s) => _buildFilterChip(
+                  label: s,
+                  icon: _subjectIcon(s),
+                  isSelected: tempSubjects.contains(s),
+                  onTap: () => setModalState(() => tempSubjects.contains(s)
+                      ? tempSubjects.remove(s)
+                      : tempSubjects.add(s)),
+                )).toList(),
               ),
               const SizedBox(height: 20),
               const Text('DIFFICULTY',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold,
                       color: Colors.black54, letterSpacing: 0.8)),
               const SizedBox(height: 10),
-              Row(children: [
-                _buildDiffChip(
-                    label: 'EASY',
-                    color: const Color(0xFF27AE60),
-                    bg: const Color(0xFFE8F8F0),
-                    isSelected: tempDifficulties.contains('EASY'),
-                    onTap: () => setModalState(() =>
-                        tempDifficulties.contains('EASY')
-                            ? tempDifficulties.remove('EASY')
-                            : tempDifficulties.add('EASY'))),
-                const SizedBox(width: 10),
-                _buildDiffChip(
-                    label: 'HARD',
-                    color: const Color(0xFFE74C3C),
-                    bg: const Color(0xFFFDECEA),
-                    isSelected: tempDifficulties.contains('HARD'),
-                    onTap: () => setModalState(() =>
-                        tempDifficulties.contains('HARD')
-                            ? tempDifficulties.remove('HARD')
-                            : tempDifficulties.add('HARD'))),
-              ]),
+              Wrap(
+                spacing: 10,
+                children: _availableDifficulties.map((d) {
+                  final cfg = _difficultyConfig(d);
+                  return _buildDiffChip(
+                    label: d,
+                    color: cfg['color'] as Color,
+                    bg: cfg['bg'] as Color,
+                    isSelected: tempDifficulties.contains(d),
+                    onTap: () => setModalState(() => tempDifficulties.contains(d)
+                        ? tempDifficulties.remove(d)
+                        : tempDifficulties.add(d)),
+                  );
+                }).toList(),
+              ),
               const SizedBox(height: 28),
               Row(children: [
                 Expanded(child: OutlinedButton(
@@ -461,7 +503,8 @@ class _QuizPageState extends State<QuizPage> {
   Widget _buildQuizCard(Map<String, dynamic> quiz) {
     final subject = (quiz['subject_name'] ?? '').toString();
     final level   = (quiz['level'] ?? '').toString().toUpperCase();
-    final isHard  = level == 'HARD';
+    final cfg = _difficultyConfig(level);
+    final levelColor = cfg['color'] as Color;
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/quiz-detail',
           arguments: quiz),
@@ -478,9 +521,7 @@ class _QuizPageState extends State<QuizPage> {
                     color: Colors.black54)),
             Text(level,
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
-                    color: isHard
-                        ? const Color(0xFFE74C3C)
-                        : const Color(0xFF27AE60))),
+                    color: levelColor)),
           ]),
           const SizedBox(height: 10),
           Row(

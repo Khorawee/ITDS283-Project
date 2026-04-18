@@ -1,4 +1,12 @@
-// lib/pages/ResultPage.dart  [UPDATED — เชื่อม API]
+/// lib/pages/ResultPage.dart
+/// หน้าแสดงผลลัพธ์หลังจากทำ Quiz เสร็จ
+/// 
+/// Features:
+/// - Display score, grade, badge
+/// - Performance breakdown (accuracy, speed, understanding)
+/// - Detailed question review link
+/// - Retry quiz button
+/// - Navigate back to HomePage
 
 import 'package:flutter/material.dart';
 import '../services/result_service.dart';
@@ -50,7 +58,6 @@ class _ResultPageState extends State<ResultPage> {
     final r            = _result;
     final score        = r?['score'] ?? 0;
     final total        = r?['total'] ?? 0;
-    final pct          = r?['percentage'] ?? 0;
     final timeSpent    = r?['time_spent'] ?? 0;
     final correct      = r?['correct'] ?? 0;
     final incorrect    = r?['incorrect'] ?? 0;

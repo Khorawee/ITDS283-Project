@@ -46,15 +46,29 @@ def update_topic_analysis(cur, user_id: int, subject_id: int,
 
 
 def update_progress(cur, user_id: int, understanding_scores: list):
-    """อัปเดต progress รายวัน สำหรับ Line Chart 7 วัน"""
+    """อัปเดต progress รายวัน — ถ้าวันนี้มีอยู่แล้ว ให้เฉลี่ยสะสม (rolling avg)
+    แทนการทับค่าเดิม เพื่อให้กราฟ Growth สะท้อนการเปลี่ยนแปลงทุก session"""
     today = date.today()
-    avg_understanding = round(
+    new_avg = round(
         sum(understanding_scores) / len(understanding_scores), 4
     ) if understanding_scores else 0.0
 
-    cur.execute('''\
-        INSERT INTO progress (user_id, date, avg_understanding)
-        VALUES (%s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            avg_understanding = VALUES(avg_understanding)
-    ''', (user_id, today, avg_understanding))
+    # ดึงค่าเดิมของวันนี้ (ถ้ามี) แล้วเฉลี่ยสะสม
+    cur.execute(
+        'SELECT avg_understanding FROM progress WHERE user_id = %s AND date = %s',
+        (user_id, today)
+    )
+    existing = cur.fetchone()
+
+    if existing:
+        # เฉลี่ยระหว่างค่าเดิมกับค่าใหม่ สะท้อน session ที่ 2+ ของวัน
+        combined = round((existing['avg_understanding'] + new_avg) / 2, 4)
+        cur.execute(
+            'UPDATE progress SET avg_understanding = %s WHERE user_id = %s AND date = %s',
+            (combined, user_id, today)
+        )
+    else:
+        cur.execute(
+            'INSERT INTO progress (user_id, date, avg_understanding) VALUES (%s, %s, %s)',
+            (user_id, today, new_avg)
+        )

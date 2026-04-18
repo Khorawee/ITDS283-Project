@@ -1,157 +1,33 @@
-# ============================================================
-# LearnFlow — .gitignore
-# ============================================================
-
-
-# ============================================================
-# 🔐 ความปลอดภัย — ห้าม push เด็ดขาด
-# ============================================================
-
-# มี DB password และ API key อยู่ข้างใน
-# ถ้า push ขึ้น GitHub คนอื่นเข้าระบบได้ทันที
-.env
-.env.local
-.env.production
-leranflow-moblie-firebase-adminsdk-fbsvc-e916a95fd9.json
-
-# serviceAccountKey.json = Admin key ของ Firebase
-# ถ้าหลุดคนอื่นอ่าน/แก้/ลบข้อมูลทั้งระบบได้เลย
-learnflow_api/config/serviceAccountKey.json
-
-# google-services.json = config เชื่อม Firebase (Android)
-# มี API key อยู่ข้างใน ถ้าหลุดคนอื่นใช้ Firebase quota ของเราได้
-learnflow_app/android/app/google-services.json
-
-# GoogleService-Info.plist = config เชื่อม Firebase (iOS)
-# ไฟล์เดียวกับ google-services.json แต่เป็นเวอร์ชัน iOS
-learnflow_app/ios/Runner/GoogleService-Info.plist
-
-
-# ============================================================
-# 🐍 Flask / Python
-# ============================================================
-
-# venv/ = Python virtual environment
-# ขนาดใหญ่มาก (หลาย 100MB) และสร้างใหม่ได้ด้วย pip install -r requirements.txt
-learnflow_api/venv/
-learnflow_api/env/
-
-# Python cache ที่ระบบสร้างอัตโนมัติตอนรัน
-# ไม่ใช่ source code จริง สร้างใหม่ได้เองทุกครั้ง
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
 
-# Flask สร้าง folder นี้อัตโนมัติตอนรัน
-# มี config เฉพาะเครื่องอยู่ข้างใน ไม่ควรใช้ร่วมกัน
-learnflow_api/instance/
+# Virtual env
+venv/
+env/
+.venv/
 
-# Pytest cache สร้างอัตโนมัติตอนรัน test
-# ไม่จำเป็นต้อง push เพราะสร้างใหม่ได้ทุกครั้ง
-.pytest_cache/
+# Environment / Secrets — ห้าม commit ขึ้น git เด็ดขาด
+.env
+config/serviceAccountKey.json
 
-
-# ============================================================
-# 📱 Flutter / Dart
-# ============================================================
-
-# ผลลัพธ์จากการ build เช่น .apk และ .ipa
-# ขนาดใหญ่มาก และสร้างใหม่ได้ด้วย flutter build
-learnflow_app/build/
-
-# Flutter tool cache สร้างอัตโนมัติตอนรัน flutter pub get
-# แต่ละเครื่องมีค่าต่างกัน push ขึ้นไปอาจทำให้คนอื่น build ไม่ผ่าน
-learnflow_app/.dart_tool/
-
-# รายการ plugin ที่ Flutter สร้างอัตโนมัติ
-# สร้างใหม่ได้ด้วย flutter pub get ทุกครั้ง
-learnflow_app/.flutter-plugins
-learnflow_app/.flutter-plugins-dependencies
-
-# ไฟล์ที่ Code Generator สร้างอัตโนมัติ (เช่น json_serializable)
-# สร้างใหม่ได้ด้วย flutter pub run build_runner build
-learnflow_app/*.g.dart
-
-# Lock file ที่ Flutter สร้างอัตโนมัติ
-# แต่ละเครื่องอาจมีเวอร์ชัน package ต่างกัน
-learnflow_app/pubspec.lock
-
-# Gradle cache ของ Android สร้างอัตโนมัติตอน build
-# ขนาดใหญ่และสร้างใหม่ได้เองทุกครั้ง
-learnflow_app/android/.gradle/
-
-# config เฉพาะเครื่อง เช่น Android SDK path
-# แต่ละเครื่องติดตั้ง SDK ไว้คนละที่ push ขึ้นไปทำให้คนอื่น build ไม่ผ่าน
-learnflow_app/android/local.properties
-
-# Android profiling output ไม่ใช่ source code
-learnflow_app/android/captures/
-
-# CocoaPods dependencies ของ iOS
-# ขนาดใหญ่มาก สร้างใหม่ได้ด้วย pod install
-learnflow_app/ios/Pods/
-learnflow_app/ios/.symlinks/
-
-# Flutter framework สำหรับ iOS สร้างอัตโนมัติตอน build
-# ไม่ใช่ source code จริง
-learnflow_app/ios/Flutter/Flutter.framework
-learnflow_app/ios/Flutter/Flutter.podspec
-
-
-# ============================================================
-# 🗄️ MySQL / Database
-# ============================================================
-
-# ข้อมูลทดสอบเฉพาะเครื่อง ไม่จำเป็นต้องใช้ร่วมกันทั้งทีม
-# แต่ละคนสร้าง seed ของตัวเองได้
-learnflow_api/database/seeds/
-
-# Database dump ที่ export ออกมา ขนาดใหญ่
-# ไม่ควรเก็บใน Git ควรเก็บใน backup storage แทน
-*.sql.gz
-*.dump
-
-
-# ============================================================
-# 💻 Editor / OS
-# ============================================================
-
-# VS Code settings เฉพาะเครื่อง เช่น font size และ theme
-# แต่ละคนตั้งค่าตามความชอบของตัวเอง ไม่ควรบังคับใช้ร่วมกัน
+# IDE
 .vscode/
-*.code-workspace
-
-# JetBrains (Android Studio) settings เฉพาะเครื่อง
-# เหมือนกับ .vscode/ คือ config ส่วนตัวของแต่ละคน
 .idea/
-*.iml
+*.swp
 
-# macOS สร้างไฟล์นี้อัตโนมัติในทุก folder
-# เก็บ metadata ของ Finder ไม่มีประโยชน์ใน Git เลย
+# OS
 .DS_Store
-.AppleDouble
-
-# Windows สร้างไฟล์นี้อัตโนมัติ
-# เก็บ thumbnail cache ของ Windows Explorer ไม่มีประโยชน์ใน Git
 Thumbs.db
-desktop.ini
 
-# Linux สร้าง backup file อัตโนมัติ
-# ไม่ใช่ source code จริง
-*~
-
-
-# ============================================================
-# 📦 Misc
-# ============================================================
-
-# Log file ที่ระบบสร้างตอน run
-# ขนาดใหญ่ขึ้นเรื่อยๆ และมีข้อมูลเฉพาะเครื่อง
-*.log
-logs/
-
-# Temp file ที่โปรแกรมสร้างชั่วคราวตอนทำงาน
-# ไม่ใช่ส่วนหนึ่งของ source code
-*.tmp
-*.temp
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
