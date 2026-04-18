@@ -39,7 +39,7 @@ def get_result(attempt_id):
 
             # ดึงข้อมูล attempt
             cur.execute('''
-                SELECT qa.*, q.title, s.subject_name
+                SELECT qa.*, q.quiz_id, q.title, s.subject_name
                 FROM quiz_attempts qa
                 JOIN quizzes q ON qa.quiz_id = q.quiz_id
                 JOIN subjects s ON q.subject_id = s.subject_id
@@ -64,6 +64,7 @@ def get_result(attempt_id):
 
         return jsonify({
             'attempt_id':      attempt['attempt_id'],
+            'quiz_id':         attempt['quiz_id'],
             'quiz_title':      attempt['title'],
             'subject_name':    attempt['subject_name'],
             'score':           attempt['score'],

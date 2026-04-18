@@ -1,4 +1,4 @@
-// lib/pages/LoginPage.dart  [FIXED]
+// lib/pages/LoginPage.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -62,8 +62,7 @@ class _LoginPageState extends State<LoginPage> {
         final provider = GoogleAuthProvider()..addScope('email');
         cred = await FirebaseAuth.instance.signInWithPopup(provider);
       } else {
-        // FIX: signOut ก่อนเพื่อให้ Google account picker แสดงเสมอ
-        // หากไม่ทำ จะใช้ cached account เดิมโดยไม่ถาม และอาจ login บัญชีผิดได้
+        // signOut ก่อนเพื่อให้ Google account picker แสดงเสมอ
         final googleSignIn = GoogleSignIn();
         await googleSignIn.signOut();
 
@@ -80,11 +79,15 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
       }
-      // Sync user → MySQL (upsert — ไม่ duplicate)
+
+      // FIX: Sync user → MySQL ก่อน navigate เสมอ
+      // ถ้า sync ล้มเหลว → user ไม่มีใน DB → /api/profile และ /api/recommendations จะได้ 404
       final displayName = cred.user?.displayName ?? '';
       await AuthService.syncGoogleLogin(displayName);
 
+      // Sync สำเร็จแล้วค่อย navigate
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
+
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         _showSnack('This email is registered with email/password. Please use that to log in.');
@@ -92,9 +95,12 @@ class _LoginPageState extends State<LoginPage> {
         _showSnack('Google sign-in failed: ${e.message}');
       }
     } on ApiException catch (e) {
-      // API error ไม่ block การเข้าแอป (user อยู่ใน Firebase แล้ว)
-      debugPrint('API sync warning: ${e.message}');
-      if (mounted) Navigator.pushReplacementNamed(context, '/home');
+      // FIX: ไม่ navigate ถ้า API sync ล้มเหลว
+      // เดิม: navigate ต่อทั้งที่ user ยังไม่มีใน MySQL → HomePage ได้ 404
+      debugPrint('API sync failed: ${e.message}');
+      _showSnack('ไม่สามารถเชื่อมต่อ Server ได้ กรุณาลองใหม่');
+      // Sign out จาก Firebase ด้วย เพื่อให้ user กด login ใหม่และ sync ใหม่อีกครั้ง
+      await FirebaseAuth.instance.signOut();
     } catch (e) {
       _showSnack('Google sign-in failed. Please try again.');
     } finally {

@@ -10,9 +10,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';  // ADD: Riverpod
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'services/local_storage_service.dart';
+import 'services/secure_local_storage_service.dart';  // ADD: Secure storage
 
 import 'pages/SplashScreen.dart';
 import 'pages/OnboardingScreen.dart';
@@ -40,12 +42,18 @@ void main() async {
 
   // Local storage initialization
   await LocalStorageService.init();
+  
+  // ADD: Secure local storage initialization (encrypted)
+  await SecureLocalStorageService.init();
 
   // Notification service
   await NotificationService.init();
   await NotificationService.requestPermission();
 
-  runApp(const LearnFlowApp());
+  runApp(
+    // ADD: Wrap app with ProviderScope for Riverpod
+    const ProviderScope(child: LearnFlowApp()),
+  );
 }
 
 // ── Global locale state ────────────────────────────────────────────────────

@@ -1,14 +1,16 @@
 from datetime import date
-from ai_service import calculate_topic_mastery, get_level, get_action
+from ai_service import calculate_topic_mastery, get_level, get_action, calculate_mastery_by_difficulty
+import json
 
 
 def update_topic_analysis(cur, user_id: int, subject_id: int,
                            understanding_scores: list,
                            correct: int, total: int,
                            avg_speed: float,
-                           subject_name: str = ''):
+                           subject_name: str = '',
+                           understanding_scores_by_difficulty: dict = None):
     """
-    คำนวณและอัปเดต topic_analysis
+    คำนวณและอัปเดต topic_analysis พร้อม difficulty-based mastery
     avg_speed คือค่าเฉลี่ย min(1.0, expected_time / response_time) รายข้อ
     คำนวณแล้วจาก quiz.py ก่อนส่งเข้ามา
     """
@@ -19,30 +21,43 @@ def update_topic_analysis(cur, user_id: int, subject_id: int,
     level         = get_level(mastery)
     topic         = subject_name or ''
 
+    # คำนวณ mastery แยกตามระดับความยาก
+    if understanding_scores_by_difficulty is None:
+        understanding_scores_by_difficulty = {
+            'easy': [],
+            'medium': [],
+            'hard': []
+        }
+    
+    mastery_by_difficulty = calculate_mastery_by_difficulty(understanding_scores_by_difficulty)
+    mastery_by_difficulty_json = json.dumps(mastery_by_difficulty)
+
     cur.execute('''\
         INSERT INTO topic_analysis
             (user_id, subject_id, topic, accuracy, speed,
-             understanding, mastery, level, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+             understanding, mastery, level, mastery_by_difficulty, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
         ON DUPLICATE KEY UPDATE
             accuracy      = VALUES(accuracy),
             speed         = VALUES(speed),
             understanding = VALUES(understanding),
             mastery       = VALUES(mastery),
             level         = VALUES(level),
+            mastery_by_difficulty = VALUES(mastery_by_difficulty),
             updated_at    = NOW()
     ''', (user_id, subject_id, topic, accuracy, avg_speed,
-          understanding, mastery, level))
+          understanding, mastery, level, mastery_by_difficulty_json))
 
     action = get_action(level)
     cur.execute('''\
         INSERT INTO recommendations
-            (user_id, subject_id, topic, action, mastery)
-        VALUES (%s, %s, %s, %s, %s)
+            (user_id, subject_id, topic, action, mastery, mastery_by_difficulty)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             action  = VALUES(action),
-            mastery = VALUES(mastery)
-    ''', (user_id, subject_id, topic, action, mastery))
+            mastery = VALUES(mastery),
+            mastery_by_difficulty = VALUES(mastery_by_difficulty)
+    ''', (user_id, subject_id, topic, action, mastery, mastery_by_difficulty_json))
 
 
 def update_progress(cur, user_id: int, understanding_scores: list):

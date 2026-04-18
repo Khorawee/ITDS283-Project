@@ -23,15 +23,21 @@ dependencies:
 
   # 🌐 HTTP
   http: ^1.2.0
+  dio: ^5.4.0  # ADD: For certificate pinning support
 
   # 💾 Local cache
   shared_preferences: ^2.2.3
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  encrypt: ^5.0.3  # ADD: For Hive encryption (null-safety compatible)
 
   # 🔔 Local Notifications
   flutter_local_notifications: ^17.2.4
   timezone: ^0.9.4
+  
+  # 🎯 State Management (replaces setState)
+  riverpod: ^2.6.0
+  flutter_riverpod: ^2.6.0
 
 dev_dependencies:
   flutter_test:

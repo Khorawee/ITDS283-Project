@@ -1,9 +1,11 @@
-// lib/pages/SplashScreen.dart  [FIXED — ใช้ authStateChanges แทน currentUser]
+// lib/pages/SplashScreen.dart
 
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
+import '../services/api_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,9 +17,8 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _logoController;
-  late Animation<double> _logoScale;
-  late Animation<double> _logoFade;
-  StreamSubscription<User?>? _authSub;
+  late Animation<double>   _logoScale;
+  late Animation<double>   _logoFade;
 
   @override
   void initState() {
@@ -39,15 +40,12 @@ class _SplashScreenState extends State<SplashScreen>
     _decideNavigation();
   }
 
-  // FIX: ใช้ authStateChanges stream เพื่อรอให้ Firebase restore session จริงๆ
-  // currentUser อาจยัง null อยู่แม้มี session ถ้าตรวจเร็วเกินไปหลัง cold start
   Future<void> _decideNavigation() async {
-    // รอ animation + Firebase init อย่างน้อย 2 วินาที
+    // รอ animation + Firebase init
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    // ใช้ firstWhere บน authStateChanges เพื่อรอ Firebase emit state จริง
-    // timeout 3 วินาที ถ้า Firebase ช้ากว่านั้น ถือว่า logged out
+    // รอ Firebase emit auth state จริง (timeout 3 วินาที)
     User? user;
     try {
       user = await FirebaseAuth.instance
@@ -60,18 +58,65 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    if (user != null) {
-      // มี session อยู่ → ข้ามหน้า login ไปที่ home เลย
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
+    if (user == null) {
       // ไม่มี session → ไป onboarding
       Navigator.pushReplacementNamed(context, '/onboarding');
+      return;
     }
+
+    // FIX: มี Firebase session → ต้อง sync user ลง MySQL ก่อนเสมอ
+    // เพราะถ้า DB ถูกล้าง หรือ user ยังไม่เคย sync → /api/profile จะได้ 404
+    try {
+      final displayName = user.displayName ?? '';
+      await AuthService.syncGoogleLogin(displayName);
+    } on ApiException catch (e) {
+      // sync ล้มเหลว (server ไม่ตอบ / CSRF error) → ไม่ให้เข้าแอป
+      debugPrint('Splash sync failed: ${e.message}');
+      if (!mounted) return;
+      _showRetryDialog();
+      return;
+    } catch (e) {
+      debugPrint('Splash sync error: $e');
+      if (!mounted) return;
+      _showRetryDialog();
+      return;
+    }
+
+    if (!mounted) return;
+    // Sync สำเร็จ → ไป home
+    Navigator.pushReplacementNamed(context, '/home');
+  }
+
+  void _showRetryDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('ไม่สามารถเชื่อมต่อ Server'),
+        content: const Text('กรุณาตรวจสอบการเชื่อมต่อ แล้วลองใหม่'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _decideNavigation(); // retry
+            },
+            child: const Text('ลองใหม่'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await FirebaseAuth.instance.signOut();
+              if (mounted) Navigator.pushReplacementNamed(context, '/');
+            },
+            child: const Text('ออกจากระบบ'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _authSub?.cancel();
     _logoController.dispose();
     super.dispose();
   }
@@ -123,7 +168,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-// ── Spinner ──────────────────────────────────────────────────────────────────
+// ── Spinner ───────────────────────────────────────────────────────────────────
 
 class _GradientSpinner extends StatefulWidget {
   const _GradientSpinner();
@@ -175,7 +220,7 @@ class _GradientSpinnerPainter extends CustomPainter {
 
     final gradient = SweepGradient(
       startAngle: 0,
-      endAngle: 2 * pi,
+      endAngle:   2 * pi,
       colors: const [
         Colors.white,
         Color(0xFFDDDDDD),
@@ -190,10 +235,10 @@ class _GradientSpinnerPainter extends CustomPainter {
     );
 
     final paint = Paint()
-      ..shader    = gradient.createShader(rect)
-      ..style     = PaintingStyle.stroke
+      ..shader      = gradient.createShader(rect)
+      ..style       = PaintingStyle.stroke
       ..strokeWidth = 8
-      ..strokeCap = StrokeCap.butt;
+      ..strokeCap   = StrokeCap.butt;
 
     canvas.drawCircle(center, radius, paint);
   }

@@ -3,6 +3,7 @@
 /// 
 /// Features:
 /// - Firebase ID Token auto-refresh on every request
+/// - CSRF token fetch before every POST/PUT/DELETE
 /// - 15-second timeout per request
 /// - Exponential backoff retry (3 attempts: 500ms, 1s, 2s)
 /// - Smart retry: skip 4xx errors, retry 5xx + TimeoutException
@@ -21,18 +22,15 @@ class ApiService {
     defaultValue: 'http://10.0.2.2:5000',
   );
 
-  // ADD: timeout ทุก request — ถ้า server ไม่ตอบใน 15 วินาที throw TimeoutException
-  static const Duration _timeout = Duration(seconds: 15);
-  
-  // ADD: Retry configuration
-  static const int _maxRetries = 3;
+  static const Duration _timeout    = Duration(seconds: 15);
+  static const int      _maxRetries = 3;
   static const Duration _retryDelay = Duration(milliseconds: 500);
 
+  // ── Token helpers ──────────────────────────────────────────────────────────
   static Future<String?> _getToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
     try {
-      // Get fresh token from Firebase
       return await user.getIdToken();
     } catch (e) {
       return null;
@@ -47,7 +45,22 @@ class ApiService {
     };
   }
 
-  // ── GET with Retry ────────────────────────────────────────────────────────────────
+  // ── CSRF Token ─────────────────────────────────────────────────────────────
+  /// ขอ CSRF token ใหม่จาก server ก่อนทุก POST/PUT/DELETE
+  /// Server ใช้ one-time token — ห้าม reuse
+  static Future<String> _getCsrfToken() async {
+    final headers = await _authHeaders();
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/csrf-token'), headers: headers)
+        .timeout(_timeout);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      return data['csrf_token'] as String;
+    }
+    throw ApiException('Failed to fetch CSRF token', response.statusCode);
+  }
+
+  // ── GET with Retry ─────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> get(String path) async {
     return _retryableRequest(
       () => _get(path),
@@ -57,14 +70,14 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> _get(String path) async {
-    final headers = await _authHeaders();
+    final headers  = await _authHeaders();
     final response = await http
         .get(Uri.parse('$baseUrl$path'), headers: headers)
         .timeout(_timeout);
     return _handleResponse(response);
   }
 
-  // ── POST with Retry ───────────────────────────────────────────────────────────────
+  // ── POST with Retry ────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> post(
       String path, Map<String, dynamic> body) async {
     return _retryableRequest(
@@ -76,14 +89,22 @@ class ApiService {
 
   static Future<Map<String, dynamic>> _post(
       String path, Map<String, dynamic> body) async {
-    final headers = await _authHeaders();
+    final headers   = await _authHeaders();
+    // ขอ CSRF token ใหม่ทุก POST — server invalidate หลังใช้ครั้งเดียว
+    final csrfToken = await _getCsrfToken();
+    headers['X-CSRF-Token'] = csrfToken;
+
     final response = await http
-        .post(Uri.parse('$baseUrl$path'), headers: headers, body: jsonEncode(body))
+        .post(
+          Uri.parse('$baseUrl$path'),
+          headers: headers,
+          body: jsonEncode(body),
+        )
         .timeout(_timeout);
     return _handleResponse(response);
   }
 
-  // ── Retry Logic ────────────────────────────────────────────────────────────────────
+  // ── Retry Logic ────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> _retryableRequest(
     Future<Map<String, dynamic>> Function() request, {
     required String method,
@@ -96,35 +117,29 @@ class ApiService {
       } on TimeoutException catch (_) {
         attempts++;
         if (attempts >= _maxRetries) {
-          throw TimeoutException('Request to $method $path failed after $_maxRetries attempts');
+          throw TimeoutException(
+              'Request to $method $path failed after $_maxRetries attempts');
         }
-        // Exponential backoff: 500ms, 1s, 2s
         await Future.delayed(_retryDelay * attempts);
       } on ApiException catch (e) {
-        // Don't retry on client errors (4xx)
-        if (e.statusCode >= 400 && e.statusCode < 500) {
-          rethrow;
-        }
+        // ไม่ retry บน 4xx (client error)
+        if (e.statusCode >= 400 && e.statusCode < 500) rethrow;
         attempts++;
-        if (attempts >= _maxRetries) {
-          rethrow;
-        }
-        // Retry on server errors (5xx)
+        if (attempts >= _maxRetries) rethrow;
+        // Retry บน 5xx (server error): exponential backoff 500ms, 1s, 2s
         await Future.delayed(_retryDelay * attempts);
       }
     }
     throw ApiException('Request failed after retries', 0);
   }
 
-  // ── Response handler ───────────────────────────────────────────────────────────
+  // ── Response handler ───────────────────────────────────────────────────────
   static Map<String, dynamic> _handleResponse(http.Response response) {
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded as Map<String, dynamic>;
     }
-    if (response.statusCode == 401) {
-      throw TokenExpiredException();
-    }
+    if (response.statusCode == 401) throw TokenExpiredException();
     final error = decoded['error'] ?? 'Unknown error (${response.statusCode})';
     throw ApiException(error, response.statusCode);
   }
@@ -134,7 +149,7 @@ class ApiService {
 
 class ApiException implements Exception {
   final String message;
-  final int statusCode;
+  final int    statusCode;
   ApiException(this.message, this.statusCode);
 
   @override

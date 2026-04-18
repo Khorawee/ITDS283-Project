@@ -10,33 +10,27 @@ recommendation_bp = Blueprint('recommendation', __name__)
 def get_recommendations():
     """
     GET /api/recommendations
-    ดึงคำแนะนำการเรียนรายวิชา เรียงจาก mastery ต่ำสุดก่อน
+    ดึงคำแนะนำการเรียนรายวิชา - หยิบ quizzes แบบสุ่มๆ มาแสดง (curated selection):
+    - ดึง quizzes ทั้งหมด แบบสุ่ม ~5 อัน เร็วที่สุด
     Flutter ใช้แสดงใน HomePage (RECOMMENDED FOR YOU)
     """
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                'SELECT user_id FROM users WHERE firebase_uid = %s',
-                (g.firebase_uid,)
-            )
-            user = cur.fetchone()
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
-
-            # ดึงคำแนะนำเรียงจาก mastery ต่ำสุด (Weak ก่อน)
+            # ดึง quizzes ทั้งหมด แบบสุ่ม - เร็วที่สุด (ไม่ต้องเช็ค user history)
             cur.execute('''
-                SELECT r.rec_id, r.topic, r.action, r.mastery,
-                       s.subject_name, r.created_at
-                FROM recommendations r
-                JOIN subjects s ON r.subject_id = s.subject_id
-                WHERE r.user_id = %s
-                ORDER BY r.mastery ASC
+                SELECT q.quiz_id as rec_id, q.title as topic, NULL as action,
+                       NULL as mastery, NULL as mastery_by_difficulty,
+                       s.subject_name, NOW() as created_at
+                FROM quizzes q
+                JOIN subjects s ON q.subject_id = s.subject_id
+                ORDER BY RAND()
                 LIMIT 5
-            ''', (user['user_id'],))
+            ''')
             recommendations = cur.fetchall()
 
         return jsonify({'recommendations': recommendations}), 200
+
 
     finally:
         conn.close()

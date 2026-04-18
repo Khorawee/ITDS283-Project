@@ -74,6 +74,13 @@ def login():
 
     if auth_provider not in ['google', 'email', 'apple']:
         return jsonify({'error': 'Invalid auth provider'}), 400
+    
+    # CRITICAL: Validate email from request matches Firebase token email
+    requested_email = data.get('email', '').strip()
+    if requested_email and requested_email != g.email:
+        logger.warning('Email mismatch for user %s: requested %s but token has %s',
+                       g.firebase_uid[:8], requested_email, g.email)
+        return jsonify({'error': 'Email mismatch with authentication'}), 401
 
     # Apply rate limit dynamically
     limiter = _get_limiter()

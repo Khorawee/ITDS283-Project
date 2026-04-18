@@ -40,3 +40,45 @@ def get_action(level: str) -> str:
         'Strong':    'ผ่าน',
     }
     return actions.get(level, 'ทบทวน')
+
+
+def calculate_mastery_by_difficulty(understanding_scores_by_difficulty: dict) -> dict:
+    """
+    คำนวณ Mastery Score แยกตามระดับความยาก
+
+    Args:
+        understanding_scores_by_difficulty: {
+            'easy':   [0.9, 0.85],
+            'medium': [0.65, 0.70],
+            'hard':   [0.40, 0.45]
+        }
+
+    Returns:
+        {
+            'easy': {'mastery': 0.875, 'level': 'Strong', 'action': 'ผ่าน'},
+            'medium': {'mastery': 0.675, 'level': 'Improving', 'action': 'ทบทวน'},
+            'hard': {'mastery': 0.425, 'level': 'Weak', 'action': 'ฝึกเพิ่ม'}
+        }
+    """
+    result = {}
+    
+    for difficulty, scores in understanding_scores_by_difficulty.items():
+        if not scores:
+            result[difficulty] = {
+                'mastery': 0.0,
+                'level': 'Weak',
+                'action': 'ฝึกเพิ่ม'
+            }
+            continue
+        
+        mastery = calculate_topic_mastery(scores)
+        level = get_level(mastery)
+        action = get_action(level)
+        
+        result[difficulty] = {
+            'mastery': mastery,
+            'level': level,
+            'action': action
+        }
+    
+    return result

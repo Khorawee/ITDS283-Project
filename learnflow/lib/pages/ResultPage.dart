@@ -125,12 +125,12 @@ class _ResultPageState extends State<ResultPage> {
           ),
           const SizedBox(height: 24),
           SizedBox(width: double.infinity, child: ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen,
+            style: ElevatedButton.styleFrom(backgroundColor: cardGreen,
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), elevation: 0),
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => ReviewAnswerPage(attemptId: _attemptId))),
-            child: const Text('REVIEW ANSWER', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
+            child: const Text('REVIEW ANSWERS', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
                 color: Colors.white, letterSpacing: 1.2)),
           )),
           const SizedBox(height: 12),
@@ -148,21 +148,58 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
-  /// รูปภาพประจำวิชา — math.png สำหรับคณิต, Eng.png สำหรับอังกฤษ
+  /// รูปภาพประจำวิชา — แสดงตามวิชาของข้อสอบ
   Widget _buildSubjectImage(String subject) {
     String? assetPath;
     final s = subject.toUpperCase();
+    
     if (s.contains('MATH')) {
       assetPath = 'assets/images/math.png';
-    } else if (s.contains('ENGLISH')) {
+    } else if (s.contains('ENGLISH') || s.contains('ENG')) {
       assetPath = 'assets/images/Eng.png';
+    } else if (s.contains('PROGRAMMING')) {
+      assetPath = 'assets/images/Programming.png';
+    } else if (s.contains('SOCIAL')) {
+      assetPath = 'assets/images/Social_Studies.png';
     }
+    
     return Container(
-      width: 100, height: 100,
-      decoration: BoxDecoration(color: cardGreen.withOpacity(0.4), shape: BoxShape.circle),
+      width: 120, 
+      height: 120,
+      decoration: BoxDecoration(
+        color: cardGreen.withOpacity(0.3), 
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: primaryGreen.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          )
+        ]
+      ),
       child: assetPath != null
-          ? ClipOval(child: Image.asset(assetPath, fit: BoxFit.cover))
-          : const Icon(Icons.quiz_outlined, color: primaryGreen, size: 48),
+          ? ClipOval(
+              child: Image.asset(
+                assetPath, 
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Icon(
+                      Icons.quiz_outlined,
+                      color: primaryGreen,
+                      size: 48,
+                    ),
+                  );
+                },
+              ),
+            )
+          : Center(
+              child: Icon(
+                Icons.quiz_outlined,
+                color: primaryGreen,
+                size: 48,
+              ),
+            ),
     );
   }
 

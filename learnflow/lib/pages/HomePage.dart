@@ -1,6 +1,7 @@
 // lib/pages/HomePage.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
 import '../services/recommendation_service.dart';
 import '../services/profile_service.dart';
 import '../widgets/bottom_nav.dart';
@@ -25,6 +26,13 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ดึงข้อมูลใหม่ทุกครั้งที่หน้า pop กลับ (เช่นจากหน้า Result)
     _loadData();
   }
 
@@ -325,16 +333,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRecommendationCard(Map<String, dynamic> rec) {
-    final subject    = rec['subject_name'] ?? '';
-    final action     = rec['action'] ?? '';
-    final mastery    = (rec['mastery'] ?? 0).toDouble();
-    final badge      = _actionLabel(action);
-    final badgeColor = action == 'ฝึกเพิ่ม'
-        ? const Color(0xFFE74C3C)
-        : action == 'ผ่าน' ? primaryGreen : const Color(0xFFF9A825);
+    final subject = rec['subject_name'] ?? '';
 
     final quizArgs = {
-      'quiz_id':         rec['rec_id'] ?? 1,
+      'quiz_id':         rec['rec_id'] ?? rec['quiz_id'] ?? 1,
       'title':           rec['topic'] ?? subject,
       'subject_name':    subject,
       'level':           'easy',
@@ -346,17 +348,6 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
           color: primaryGreen, borderRadius: BorderRadius.circular(14)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          const Text('STATUS: ',
-              style: TextStyle(color: Colors.white70, fontSize: 11,
-                  fontWeight: FontWeight.w600)),
-          Text(badge,
-              style: TextStyle(
-                  color: badgeColor == primaryGreen ? Colors.white : badgeColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold)),
-        ]),
-        const SizedBox(height: 10),
         Row(children: [
           _buildSubjectAvatar(subject),
           const SizedBox(width: 12),
@@ -366,7 +357,7 @@ class _HomePageState extends State<HomePage> {
                   style: const TextStyle(color: Colors.white,
                       fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 4),
-              Text('Mastery: ${(mastery * 100).toInt()}%',
+              Text(rec['topic'] ?? 'Quiz',
                   style: const TextStyle(color: Colors.white70, fontSize: 11)),
             ]),
           ),
@@ -388,6 +379,39 @@ class _HomePageState extends State<HomePage> {
           ),
         ]),
       ]),
+    );
+  }
+
+  Widget _buildDifficultyBadge(String label, Map<String, dynamic>? diffData) {
+    if (diffData == null) return const SizedBox.shrink();
+    
+    final mastery = (diffData['mastery'] ?? 0.0).toDouble();
+    final level = diffData['level'] ?? 'Weak';
+    
+    Color badgeColor;
+    if (level == 'Strong') {
+      badgeColor = Colors.white;
+    } else if (level == 'Improving') {
+      badgeColor = const Color(0xFFFFC107);
+    } else {
+      badgeColor = const Color(0xFFE74C3C);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: badgeColor.withOpacity(0.5), width: 0.5),
+      ),
+      child: Text(
+        '$label:${(mastery * 100).toInt()}%',
+        style: TextStyle(
+          color: badgeColor,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
