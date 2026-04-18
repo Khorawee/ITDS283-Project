@@ -31,3 +31,5 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+learnflow_api/config/serviceAccountKey.json
