@@ -19,7 +19,7 @@ class ApiService {
   // flutter run --dart-define=API_URL=http://192.168.x.x:5000
   static const String baseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://10.0.2.2:5000',
+    defaultValue: 'https://itds283-project-production.up.railway.app',
   );
 
   static const Duration _timeout    = Duration(seconds: 15);
