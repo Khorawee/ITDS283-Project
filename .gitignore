@@ -1,4 +1,13 @@
+# ─────────────────────────────────────────
+# SECRETS — ห้าม commit ขึ้น git เด็ดขาด
+# ─────────────────────────────────────────
+.env
+*.env.*
+learnflow_api/config/serviceAccountKey.json
+
+# ─────────────────────────────────────────
 # Python
+# ─────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -14,22 +23,37 @@ venv/
 env/
 .venv/
 
-# Environment / Secrets — ห้าม commit ขึ้น git เด็ดขาด
-.env
-config/serviceAccountKey.json
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# OS
-.DS_Store
-Thumbs.db
-
 # Pytest
 .pytest_cache/
 htmlcov/
 .coverage
 
-learnflow_api/config/serviceAccountKey.json
+# ─────────────────────────────────────────
+# Flutter / Dart
+# ─────────────────────────────────────────
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.g.dart
+*.freezed.dart
+
+# ─────────────────────────────────────────
+# IDE
+# ─────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ─────────────────────────────────────────
+# OS
+# ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─────────────────────────────────────────
+# Logs & temp files
+# ─────────────────────────────────────────
+*.log
+*.zip
