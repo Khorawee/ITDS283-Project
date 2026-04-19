@@ -2,6 +2,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 
@@ -9,6 +10,9 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
+
+  // Key สำหรับบันทึกสถานะการแจ้งเตือนลง SharedPreferences
+  static const String _prefKey = 'notifications_enabled';
 
   static bool get _isSupported =>
       !kIsWeb &&
@@ -36,26 +40,59 @@ class NotificationService {
     _initialized = true;
   }
 
-  static Future<void> requestPermission() async {
-    if (!_isSupported) return;
+  /// ตรวจสอบว่า OS ให้ permission การแจ้งเตือนหรือยัง
+  static Future<bool> hasPermission() async {
+    if (!_isSupported) return false;
     if (defaultTargetPlatform == TargetPlatform.android) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
-      // ขอแค่ POST_NOTIFICATIONS permission ปกติเท่านั้น
-      // ไม่ขอ exact alarm เพราะ Android 15 จัดการยาก
-      await android?.requestNotificationsPermission();
+      final granted = await android?.areNotificationsEnabled();
+      return granted ?? false;
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final ios = _plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      final perms = await ios?.checkPermissions();
+      return perms?.isEnabled ?? false;
     }
+    return false;
   }
 
-  static Future<int> getPendingCount() async {
-    if (!_isSupported) return 0;
-    try {
-      final pending = await _plugin.pendingNotificationRequests();
-      return pending.length;
-    } catch (_) {
-      return 0;
+  /// ขอ permission แล้วรอ return ว่าได้รับหรือไม่
+  static Future<bool> requestPermission() async {
+    if (!_isSupported) return false;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      final granted = await android?.requestNotificationsPermission();
+      return granted ?? false;
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final ios = _plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      final granted = await ios?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      return granted ?? false;
     }
+    return false;
   }
+
+  // ─── SharedPreferences: บันทึก/โหลด สถานะ ─────────────────────────────────
+
+  /// บันทึกสถานะที่ผู้ใช้ตั้งไว้
+  static Future<void> _saveEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefKey, value);
+  }
+
+  /// อ่านสถานะที่บันทึกไว้ (default = false)
+  static Future<bool> loadEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefKey) ?? false;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
 
   static Future<void> showNow({
     required int id,
@@ -85,8 +122,17 @@ class NotificationService {
     );
   }
 
-  static Future<void> scheduleDailyReminder() async {
-    if (!_isSupported) return;
+  /// Schedule + บันทึกสถานะลง prefs
+  /// Return true ถ้าสำเร็จ, false ถ้าไม่มี permission
+  static Future<bool> scheduleDailyReminder() async {
+    if (!_isSupported) return false;
+
+    // ตรวจ permission ก่อน schedule เสมอ
+    final permitted = await hasPermission();
+    if (!permitted) {
+      await _saveEnabled(false);
+      return false;
+    }
 
     final now = tz.TZDateTime.now(tz.local);
     var scheduled =
@@ -96,9 +142,6 @@ class NotificationService {
       scheduled = scheduled.add(const Duration(days: 1));
     }
 
-    // FIX Android 15: ใช้ inexactAllowWhileIdle ตายตัว
-    // ไม่เช็ค canScheduleExactNotifications() เพราะ Android 15
-    // reset permission ทุกครั้งที่ restart ทำให้ switch กลับไปปิดเอง
     await _plugin.zonedSchedule(
       100,
       'LearnFlow — ถึงเวลาฝึกทักษะแล้ว!',
@@ -119,6 +162,10 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+
+    // บันทึกสถานะว่าเปิดอยู่
+    await _saveEnabled(true);
+    return true;
   }
 
   // สำหรับ test notification ทันที (ขึ้นใน 5 วินาที)
@@ -163,9 +210,11 @@ class NotificationService {
     );
   }
 
+  /// ยกเลิกทุก notification + บันทึกสถานะว่าปิดแล้ว
   static Future<void> cancelAll() async {
     if (!_isSupported) return;
     await _plugin.cancelAll();
+    await _saveEnabled(false);
   }
 
   static Future<void> cancel(int id) async {

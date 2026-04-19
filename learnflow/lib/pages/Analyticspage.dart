@@ -1,8 +1,4 @@
 // lib/pages/Analyticspage.dart
-// FIX: Growth chart แสดงข้อมูลทั้งหมด (all-time) จาก /api/growth
-//      ลบ time filter ออกจาก Growth card
-//      แก้ label x-axis ติดกัน — แสดงแค่บางจุด
-
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/analytics_service.dart';
@@ -34,14 +30,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   List<Map<String, dynamic>> _barData    = [];
   Map<String, dynamic>       _radarData  = {};
 
-  // FIX: Growth data แยกต่างหาก — all-time
   List<Map<String, dynamic>> _growthData = [];
 
   @override
   void initState() {
     super.initState();
     _loadDashboard();
-    _loadGrowth();   // FIX: โหลด growth แยก
+    _loadGrowth();
   }
 
   Future<void> _loadDashboard() async {
@@ -59,7 +54,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
-  // FIX: โหลด growth ทั้งหมด ไม่ขึ้นกับ time filter
   Future<void> _loadGrowth() async {
     setState(() => _isGrowthLoading = true);
     try {
@@ -81,21 +75,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
-  // FIX: prepend origin (0,0) เสมอ ให้กราฟเริ่มที่ 0 และเห็นการเปลี่ยนแปลง
   List<FlSpot> get _growthSpots {
     const origin = FlSpot(0, 0);
     if (_growthData.isEmpty) return [origin, const FlSpot(1, 0)];
     final dataSpots = _growthData.asMap().entries.map((e) {
       final val = (e.value['avg_understanding'] ?? 0).toDouble();
-      return FlSpot((e.key + 1).toDouble(), val); // +1 เพราะ index 0 = origin
+      return FlSpot((e.key + 1).toDouble(), val);
     }).toList();
     return [origin, ...dataSpots];
   }
 
-  // FIX: label สำหรับ x-axis — idx 0 = origin (ไม่มี label), idx 1+ = data
   String? _growthLabel(int idx) {
-    if (idx == 0) return ''; // origin ไม่แสดง label
-    final dataIdx = idx - 1; // แปลงกลับ index ใน _growthData
+    if (idx == 0) return '';
+    final dataIdx = idx - 1;
     final total = _growthData.length;
     if (total == 0 || dataIdx >= total) return null;
 
@@ -103,7 +95,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (total > 7)  step = (total / 5).ceil();
     if (total > 20) step = (total / 5).ceil();
 
-    if (dataIdx % step != 0 && dataIdx != total - 1) return null; // ซ่อน
+    if (dataIdx % step != 0 && dataIdx != total - 1) return null;
 
     final raw = _growthData[dataIdx]['label']?.toString() ?? '';
     return raw;
@@ -135,7 +127,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         Expanded(child: _buildMasteryCard()),
                       ]),
                       const SizedBox(height: 12),
-                      _buildGrowthCard(),   // FIX: ไม่ขึ้นกับ time filter แล้ว
+                      _buildGrowthCard(),
                       const SizedBox(height: 12),
                       Row(children: [
                         Expanded(child: _buildDonutCard()),
@@ -280,7 +272,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  // FIX: Growth card — แสดง all-time, ไม่มี time badge, label ไม่ติดกัน
   Widget _buildGrowthCard() {
     final spots = _growthSpots;
     final total = _growthData.length;
@@ -294,7 +285,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const Text('Growth',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16,
                   color: Colors.black87)),
-          // FIX: แสดง "ALL TIME" badge แทน time filter
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -311,14 +301,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ]),
         const SizedBox(height: 16),
 
-        // FIX: ถ้ายังโหลดอยู่
         if (_isGrowthLoading)
           const SizedBox(
             height: 160,
             child: Center(
                 child: CircularProgressIndicator(color: primaryGreen)),
           )
-        // FIX: ยังไม่มีข้อมูลเลย
         else if (_growthData.isEmpty)
           SizedBox(
             height: 120,
@@ -359,7 +347,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     reservedSize: 22,
                     getTitlesWidget: (v, m) {
                       final idx = v.toInt();
-                      // spots[0] = origin, spots[1+] = data
                       if (idx < 0 || idx > _growthData.length) {
                         return const SizedBox();
                       }
@@ -387,7 +374,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 dotData: FlDotData(
                   show: true,
                   getDotPainter: (s, p, b, i) {
-                    // ซ่อน dot ที่ origin (index 0)
                     if (i == 0) {
                       return FlDotCirclePainter(
                           radius: 0,

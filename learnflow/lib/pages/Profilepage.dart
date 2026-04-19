@@ -65,11 +65,20 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     }
   }
 
-  // FIX: เช็ค pending notifications จริงเพื่อ sync state ของ Switch
+  // โหลด notification state จาก SharedPreferences (เชื่อถือได้กว่า pending count)
   Future<void> _loadNotificationState() async {
     try {
-      final count = await NotificationService.getPendingCount();
-      if (mounted) setState(() => _notifications = count > 0);
+      final enabled = await NotificationService.loadEnabled();
+      // ถ้า prefs บอกว่าเปิดอยู่ ให้ตรวจ permission จริงด้วย
+      // เพื่อกรณีที่ผู้ใช้ไปปิด permission ใน Settings ด้วยตัวเอง
+      if (enabled) {
+        final permitted = await NotificationService.hasPermission();
+        if (mounted) setState(() => _notifications = permitted);
+        // ถ้า permission หายไป ให้อัปเดต prefs ด้วย
+        if (!permitted) await NotificationService.cancelAll();
+      } else {
+        if (mounted) setState(() => _notifications = false);
+      }
     } catch (_) {}
   }
 
@@ -234,27 +243,38 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     );
   }
 
-  // FIX: toggle notification พร้อม verify ว่า schedule สำเร็จจริง
   Future<void> _toggleNotifications(bool value) async {
     setState(() => _notifications = value);
     if (value) {
-      await NotificationService.requestPermission();
-      await NotificationService.scheduleDailyReminder();
+      // 1. ขอ permission ก่อน แล้วรอผลว่าได้รับหรือไม่
+      final granted = await NotificationService.requestPermission();
 
-      // FIX: ตรวจสอบว่า schedule สำเร็จจริงหรือเปล่า
-      final count = await NotificationService.getPendingCount();
-      final success = count > 0;
+      if (!granted) {
+        // ไม่ได้ permission → Switch กลับเป็น false + แจ้งผู้ใช้
+        if (mounted) setState(() => _notifications = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('กรุณาอนุญาตการแจ้งเตือนใน Settings ของเครื่อง'),
+            backgroundColor: Colors.red,
+          ));
+        }
+        return;
+      }
+
+      // 2. มี permission แล้ว → schedule และบันทึก state ลง prefs
+      final success = await NotificationService.scheduleDailyReminder();
       if (mounted) setState(() => _notifications = success);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(success
               ? 'เปิดการแจ้งเตือนแล้ว (09:00 ทุกวัน)'
-              : 'ไม่สามารถตั้งการแจ้งเตือนได้ กรุณาอนุญาตใน Settings'),
+              : 'ไม่สามารถตั้งการแจ้งเตือนได้ กรุณาลองใหม่'),
           backgroundColor: success ? primaryGreen : Colors.red,
         ));
       }
     } else {
+      // ปิด: ยกเลิก notification + บันทึก state ลง prefs
       await NotificationService.cancelAll();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
