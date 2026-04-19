@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'dart:developer' as dev;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart'; // FIX: เพิ่ม import
 import '../services/notification_service.dart';
 import '../services/profile_service.dart';
 import '../main.dart' show LearnFlowApp;
@@ -283,9 +284,21 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     );
   }
 
+  // FIX: logout ต้อง signOut Google Sign-In ด้วย
+  // ถ้า signOut แค่ Firebase แต่ไม่ signOut Google SDK
+  // → Google จะ auto-login บัญชีเดิมโดยไม่ผ่าน account picker
+  // → ทำให้ปุ่ม Logout ดูเหมือนไม่ทำงาน และ Google Login ครั้งต่อไปผิดพลาด
   Future<void> _logout() async {
-    await NotificationService.cancelAll();
+    try {
+      await NotificationService.cancelAll();
+    } catch (_) {}
+
+    try {
+      await GoogleSignIn().signOut(); // FIX: เพิ่ม signOut Google SDK ด้วย
+    } catch (_) {}
+
     await FirebaseAuth.instance.signOut();
+
     if (mounted) {
       Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
     }
