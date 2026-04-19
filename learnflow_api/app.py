@@ -25,9 +25,6 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from firebase_config import init_firebase
-import secrets
-import hashlib
-import base64
 
 from auth import auth_bp
 from quiz import quiz_bp
@@ -36,7 +33,7 @@ from analysis import analysis_bp
 from recommendation import recommendation_bp
 from user_profile import profile_bp
 
-# ADD: Global limiter instance — so blueprints can use it
+# Global limiter instance — so blueprints can use it
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[],
@@ -77,9 +74,6 @@ def create_app():
     logger = logging.getLogger(__name__)
 
     app = Flask(__name__)
-    
-    # Store CSRF tokens in-memory (use Redis in production)
-    app.csrf_tokens = {}
 
     # Init global limiter with app
     limiter.init_app(app)
@@ -98,37 +92,11 @@ def create_app():
     app.register_blueprint(recommendation_bp)
     app.register_blueprint(profile_bp)
 
-    # ADD: CSRF Token Generation Endpoint
-    @app.route('/api/csrf-token', methods=['GET'])
-    def get_csrf_token():
-        """Generate and return a CSRF token for state-changing requests"""
-        token = base64.b64encode(secrets.token_bytes(32)).decode('utf-8')
-        app.csrf_tokens[token] = True
-        return jsonify({'csrf_token': token}), 200
+    # NOTE: CSRF protection removed — Mobile app uses Firebase Auth (Bearer token)
+    # which already protects against CSRF. In-memory CSRF tokens are not suitable
+    # for production deployments that restart frequently (e.g. Railway).
 
-    # ADD: CSRF Protection Middleware for POST/PUT/DELETE requests
-    @app.before_request
-    def verify_csrf():
-        """ตรวจสอบ CSRF token บน POST/PUT/DELETE requests (ยกเว้น health check และ public endpoints)"""
-        from flask import request
-        
-        # Skip CSRF check สำหรับ GET/HEAD/OPTIONS หรือ public endpoints
-        if request.method in ('GET', 'HEAD', 'OPTIONS'):
-            return
-        if request.path in ('/health', '/api/auth/login', '/api/auth/register'):
-            return
-        
-        # สำหรับ state-changing requests ต้องมี CSRF token
-        token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
-        if not token or token not in app.csrf_tokens:
-            logger.warning('CSRF token missing or invalid for %s %s from %s',
-                           request.method, request.path, request.remote_addr)
-            return jsonify({'error': 'CSRF token invalid or missing'}), 403
-        
-        # Cleanup token after use (one-time use)
-        del app.csrf_tokens[token]
-
-    # ADD: Health check endpoint — ตรวจสอบ DB connection จริง
+    # Health check endpoint — ตรวจสอบ DB connection จริง
     @app.route('/health')
     def health():
         from db_config import get_connection
@@ -146,7 +114,7 @@ def create_app():
     def index():
         return {'message': 'LearnFlow API is running'}, 200
 
-    # ADD: Debug endpoint to list all registered routes
+    # Debug endpoint to list all registered routes
     @app.route('/api/debug/routes', methods=['GET'])
     def debug_routes():
         """List all registered routes for debugging"""
@@ -159,7 +127,7 @@ def create_app():
             })
         return jsonify({'routes': sorted(routes, key=lambda x: x['rule'])}), 200
 
-    # ADD: Global error handlers
+    # Global error handlers
     @app.errorhandler(429)
     def rate_limit_error(e):
         return jsonify({'error': 'Too many requests, please slow down'}), 429
