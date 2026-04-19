@@ -109,13 +109,13 @@ def create_app():
     # ADD: CSRF Protection Middleware for POST/PUT/DELETE requests
     @app.before_request
     def verify_csrf():
-        """ตรวจสอบ CSRF token บน POST/PUT/DELETE requests (ยกเว้น health check)"""
+        """ตรวจสอบ CSRF token บน POST/PUT/DELETE requests (ยกเว้น health check และ public endpoints)"""
         from flask import request
         
-        # Skip CSRF check สำหรับ GET/HEAD/OPTIONS หรือ /health
+        # Skip CSRF check สำหรับ GET/HEAD/OPTIONS หรือ public endpoints
         if request.method in ('GET', 'HEAD', 'OPTIONS'):
             return
-        if request.path == '/health':
+        if request.path in ('/health', '/api/auth/login', '/api/auth/register'):
             return
         
         # สำหรับ state-changing requests ต้องมี CSRF token
