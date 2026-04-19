@@ -1,5 +1,6 @@
 // lib/services/notification_service.dart
-// FIX: เพิ่ม getPendingCount() เพื่อให้ HomePage ตรวจสอบว่ามี reminder ตั้งอยู่หรือเปล่า
+// FIX: ตั้งค่า local timezone อย่างถูกต้อง
+// FIX: ใช้ inexactAllowWhileIdle แทน exactAllowWhileIdle เพื่อหลีกเลี่ยง permission ปัญหา
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -19,7 +20,11 @@ class NotificationService {
 
   static Future<void> init() async {
     if (!_isSupported || _initialized) return;
+
+    // FIX: initialize timezones และ set local timezone เป็น Asia/Bangkok
     tz_data.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Asia/Bangkok')); // ← FIX หลัก
+
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -40,6 +45,8 @@ class NotificationService {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       await android?.requestNotificationsPermission();
+      // FIX: ขอ exact alarm permission ด้วย (Android 12+)
+      await android?.requestExactAlarmsPermission();
     }
   }
 
@@ -84,16 +91,21 @@ class NotificationService {
 
   static Future<void> scheduleDailyReminder() async {
     if (!_isSupported) return;
-    final now = DateTime.now();
-    var scheduled = DateTime(now.year, now.month, now.day, 9, 0);
+
+    // FIX: ใช้ tz.local ที่ set เป็น Asia/Bangkok แล้ว
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0);
+
+    // ถ้าเวลา 09:00 ผ่านไปแล้ววันนี้ → schedule วันพรุ่งนี้
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
+
     await _plugin.zonedSchedule(
       100,
       'LearnFlow — ถึงเวลาฝึกทักษะแล้ว!',
       'อย่าลืมทำ Quiz วันนี้เพื่อรักษา Streak ของคุณ',
-      tz.TZDateTime.from(scheduled, tz.local),
+      scheduled,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'learnflow_daily', 'Daily Reminder',
@@ -104,10 +116,41 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // FIX: เปลี่ยนจาก exactAllowWhileIdle → inexactAllowWhileIdle
+      // เพื่อหลีกเลี่ยง SCHEDULE_EXACT_ALARM permission ปัญหาบาง device
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
+      matchDateTimeComponents: DateTimeComponents.time, // repeat ทุกวัน
+    );
+  }
+
+  // FIX: เพิ่ม method สำหรับ test notification ทันที (ใช้ debug)
+  static Future<void> scheduleTestNotification() async {
+    if (!_isSupported) return;
+    final scheduled = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5));
+    await _plugin.zonedSchedule(
+      999,
+      'LearnFlow Test 🔔',
+      'การแจ้งเตือนทำงานปกติ!',
+      scheduled,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'learnflow_daily', 'Daily Reminder',
+          channelDescription: 'LearnFlow daily study reminder',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
