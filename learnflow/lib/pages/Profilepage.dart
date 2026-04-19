@@ -11,7 +11,7 @@
 import 'package:flutter/material.dart';
 import 'dart:developer' as dev;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // FIX: เพิ่ม import
+import 'package:google_sign_in/google_sign_in.dart';
 import '../services/notification_service.dart';
 import '../services/profile_service.dart';
 import '../main.dart' show LearnFlowApp;
@@ -29,7 +29,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   static const Color cardGreen    = Color(0xFF81E3AB);
   static const Color bgColor      = Color(0xFFF0FBF4);
 
-  bool   _notifications    = true;
+  // FIX: เริ่มต้นเป็น false แล้วค่อย load state จริงจาก pending notifications
+  bool   _notifications    = false;
   String _preferredSubject = 'Mathematics';
   String _learningMode     = 'Normal';
 
@@ -41,8 +42,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadProfile();
-    
-    // Ensure data is fresh after first frame for updated scores
+    _loadNotificationState(); // FIX: โหลด notification state จริงตอน init
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadProfile();
@@ -60,7 +61,16 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted) {
       _loadProfile();
+      _loadNotificationState(); // FIX: refresh notification state เมื่อกลับมาที่แอป
     }
+  }
+
+  // FIX: เช็ค pending notifications จริงเพื่อ sync state ของ Switch
+  Future<void> _loadNotificationState() async {
+    try {
+      final count = await NotificationService.getPendingCount();
+      if (mounted) setState(() => _notifications = count > 0);
+    } catch (_) {}
   }
 
   Future<void> _loadProfile() async {
@@ -89,7 +99,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 
   String get _email => _profile['email'] ?? FirebaseAuth.instance.currentUser?.email ?? 'N/A';
 
-  // FIX: แปลง String → num อย่างปลอดภัย
   String get _totalQuizzes {
     final val = _profile['total_quizzes'];
     if (val == null) return '0';
@@ -182,7 +191,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
           ElevatedButton(
             onPressed: () {
-              // FIX: Add input validation
               final first = firstCtrl.text.trim();
               final last = lastCtrl.text.trim();
 
@@ -226,15 +234,25 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     );
   }
 
+  // FIX: toggle notification พร้อม verify ว่า schedule สำเร็จจริง
   Future<void> _toggleNotifications(bool value) async {
     setState(() => _notifications = value);
     if (value) {
       await NotificationService.requestPermission();
       await NotificationService.scheduleDailyReminder();
+
+      // FIX: ตรวจสอบว่า schedule สำเร็จจริงหรือเปล่า
+      final count = await NotificationService.getPendingCount();
+      final success = count > 0;
+      if (mounted) setState(() => _notifications = success);
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('เปิดการแจ้งเตือนแล้ว'),
-            backgroundColor: Color(0xFF1DBA78)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(success
+              ? 'เปิดการแจ้งเตือนแล้ว (09:00 ทุกวัน)'
+              : 'ไม่สามารถตั้งการแจ้งเตือนได้ กรุณาอนุญาตใน Settings'),
+          backgroundColor: success ? primaryGreen : Colors.red,
+        ));
       }
     } else {
       await NotificationService.cancelAll();
@@ -285,20 +303,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   }
 
   // FIX: logout ต้อง signOut Google Sign-In ด้วย
-  // ถ้า signOut แค่ Firebase แต่ไม่ signOut Google SDK
-  // → Google จะ auto-login บัญชีเดิมโดยไม่ผ่าน account picker
-  // → ทำให้ปุ่ม Logout ดูเหมือนไม่ทำงาน และ Google Login ครั้งต่อไปผิดพลาด
   Future<void> _logout() async {
-    try {
-      await NotificationService.cancelAll();
-    } catch (_) {}
-
-    try {
-      await GoogleSignIn().signOut(); // FIX: เพิ่ม signOut Google SDK ด้วย
-    } catch (_) {}
-
+    try { await NotificationService.cancelAll(); } catch (_) {}
+    try { await GoogleSignIn().signOut(); } catch (_) {}
     await FirebaseAuth.instance.signOut();
-
     if (mounted) {
       Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
     }
@@ -433,13 +441,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     }
 
     final totalQuizzesInt = int.tryParse(_totalQuizzes) ?? 0;
-
-    // avgScore จาก API เป็น 0–100 แล้ว (backend round * 100 ไปแล้ว)
-    // หาร 100 เพื่อให้ LinearProgressIndicator ได้ค่า 0.0–1.0
     final avgValue = (_avgScore / 100).clamp(0.0, 1.0);
-
-    // Quizzes: แสดงสัดส่วนจริงของจำนวน quiz ที่ทำ
-    // ใช้ progress bar แบบ open-ended: cap ที่ 20 = เต็ม 100%
     final quizValue = (totalQuizzesInt / 20).clamp(0.0, 1.0);
 
     Color barColor(double v) {
