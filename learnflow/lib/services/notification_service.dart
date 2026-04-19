@@ -1,6 +1,4 @@
 // lib/services/notification_service.dart
-// FIX: ตั้งค่า local timezone อย่างถูกต้อง
-// FIX: ใช้ inexactAllowWhileIdle แทน exactAllowWhileIdle เพื่อหลีกเลี่ยง permission ปัญหา
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -23,7 +21,7 @@ class NotificationService {
 
     // FIX: initialize timezones และ set local timezone เป็น Asia/Bangkok
     tz_data.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Bangkok')); // ← FIX หลัก
+    tz.setLocalLocation(tz.getLocation('Asia/Bangkok'));
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -44,13 +42,12 @@ class NotificationService {
     if (defaultTargetPlatform == TargetPlatform.android) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
+      // FIX: ขอแค่ notification permission ปกติ
+      // ไม่ขอ requestExactAlarmsPermission() เพราะทำให้ต้องไปเปิดใน Settings
       await android?.requestNotificationsPermission();
-      // FIX: ขอ exact alarm permission ด้วย (Android 12+)
-      await android?.requestExactAlarmsPermission();
     }
   }
 
-  // FIX: เพิ่ม method นี้เพื่อให้ HomePage ดึงจำนวน pending notifications
   static Future<int> getPendingCount() async {
     if (!_isSupported) return 0;
     try {
@@ -92,7 +89,7 @@ class NotificationService {
   static Future<void> scheduleDailyReminder() async {
     if (!_isSupported) return;
 
-    // FIX: ใช้ tz.local ที่ set เป็น Asia/Bangkok แล้ว
+    // ใช้ tz.local ที่ set เป็น Asia/Bangkok แล้ว
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0);
 
@@ -116,16 +113,16 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      // FIX: เปลี่ยนจาก exactAllowWhileIdle → inexactAllowWhileIdle
-      // เพื่อหลีกเลี่ยง SCHEDULE_EXACT_ALARM permission ปัญหาบาง device
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      // FIX: ใช้ alarmClock แทน inexactAllowWhileIdle
+      // ไม่ต้องขอ exact alarm permission พิเศษ แต่ยังทำงานได้แม้ device อยู่ใน Doze mode
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time, // repeat ทุกวัน
     );
   }
 
-  // FIX: เพิ่ม method สำหรับ test notification ทันที (ใช้ debug)
+  // สำหรับ test notification ทันที (ขึ้นใน 5 วินาที)
   static Future<void> scheduleTestNotification() async {
     if (!_isSupported) return;
     final scheduled = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5));
@@ -148,7 +145,7 @@ class NotificationService {
           presentSound: true,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
