@@ -19,7 +19,6 @@ class NotificationService {
   static Future<void> init() async {
     if (!_isSupported || _initialized) return;
 
-    // set local timezone เป็น Asia/Bangkok
     tz_data.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Bangkok'));
 
@@ -42,6 +41,8 @@ class NotificationService {
     if (defaultTargetPlatform == TargetPlatform.android) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
+      // ขอแค่ POST_NOTIFICATIONS permission ปกติเท่านั้น
+      // ไม่ขอ exact alarm เพราะ Android 15 จัดการยาก
       await android?.requestNotificationsPermission();
     }
   }
@@ -91,22 +92,13 @@ class NotificationService {
     var scheduled =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0);
 
-    // ถ้าเวลา 09:00 ผ่านไปแล้ววันนี้ → schedule วันพรุ่งนี้
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
 
-    // FIX Android 15: เช็ค exact alarm permission ก่อน
-    // ถ้าได้รับ permission → ใช้ exactAllowWhileIdle (แม่นยำกว่า)
-    // ถ้าไม่ได้ → fallback เป็น inexactAllowWhileIdle (ไม่ต้องขอ permission พิเศษ)
-    AndroidScheduleMode scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      final hasExact = await android?.canScheduleExactNotifications() ?? false;
-      if (hasExact) scheduleMode = AndroidScheduleMode.exactAllowWhileIdle;
-    }
-
+    // FIX Android 15: ใช้ inexactAllowWhileIdle ตายตัว
+    // ไม่เช็ค canScheduleExactNotifications() เพราะ Android 15
+    // reset permission ทุกครั้งที่ restart ทำให้ switch กลับไปปิดเอง
     await _plugin.zonedSchedule(
       100,
       'LearnFlow — ถึงเวลาฝึกทักษะแล้ว!',
@@ -122,25 +114,16 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: scheduleMode,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time, // repeat ทุกวัน
+      matchDateTimeComponents: DateTimeComponents.time,
     );
   }
 
   // สำหรับ test notification ทันที (ขึ้นใน 5 วินาที)
   static Future<void> scheduleTestNotification() async {
     if (!_isSupported) return;
-
-    AndroidScheduleMode scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      final hasExact = await android?.canScheduleExactNotifications() ?? false;
-      if (hasExact) scheduleMode = AndroidScheduleMode.exactAllowWhileIdle;
-    }
-
     final scheduled =
         tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5));
     await _plugin.zonedSchedule(
@@ -162,7 +145,7 @@ class NotificationService {
           presentSound: true,
         ),
       ),
-      androidScheduleMode: scheduleMode,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
