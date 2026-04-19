@@ -35,7 +35,7 @@ def _init_pool():
         return
     
     try:
-        from DBUtils.PooledDB import PooledDB
+        from dbutils.pooled_db import PooledDB
         
         _pool = PooledDB(
             creator=pymysql,
