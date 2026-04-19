@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/quiz_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/analytics_service.dart';
 
 class QuizPlayPage extends StatefulWidget {
   const QuizPlayPage({super.key});
@@ -173,6 +174,9 @@ class _QuizPlayPageState extends State<QuizPlayPage> {
         timeSpent: timeSpent,
         answers:   answers,
       );
+
+      // Invalidate analytics cache so Home/Analytics show updated data
+      AnalyticsService.invalidateCache();
 
       if (mounted) {
         Navigator.of(context).pop(); // close loading dialog
