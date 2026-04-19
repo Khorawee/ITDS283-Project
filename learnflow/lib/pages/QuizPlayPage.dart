@@ -156,6 +156,17 @@ class _QuizPlayPageState extends State<QuizPlayPage> {
       timeSpent: timeSpent,
     );
 
+    // Show loading dialog while submitting
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(color: primaryGreen),
+        ),
+      );
+    }
+
     try {
       final result = await QuizService.submitQuiz(
         quizId:    _quizId,
@@ -164,15 +175,25 @@ class _QuizPlayPageState extends State<QuizPlayPage> {
       );
 
       if (mounted) {
+        Navigator.of(context).pop(); // close loading dialog
         Navigator.pushReplacementNamed(context, '/result',
             arguments: {'attempt_id': result['attempt_id']});
       }
     } catch (e) {
-      // FIX: Navigate to result anyway — data is cached locally
-      // Server may have received the request even if we timed out
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/result',
-            arguments: {'attempt_id': null, 'error': e.toString()});
+        Navigator.of(context).pop(); // close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('ส่งคำตอบไม่สำเร็จ กรุณาลองใหม่'),
+            backgroundColor: const Color(0xFFE74C3C),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'ลองใหม่',
+              textColor: Colors.white,
+              onPressed: () => _submitQuiz(),
+            ),
+          ),
+        );
       }
     }
   }

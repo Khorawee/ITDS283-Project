@@ -21,7 +21,7 @@ class ApiService {
     defaultValue: 'https://itds283-project-production.up.railway.app',
   );
 
-  static const Duration _timeout    = Duration(seconds: 15);
+  static const Duration _timeout    = Duration(seconds: 60); // increased for Railway cold start
   static const int      _maxRetries = 3;
   static const Duration _retryDelay = Duration(milliseconds: 500);
 
