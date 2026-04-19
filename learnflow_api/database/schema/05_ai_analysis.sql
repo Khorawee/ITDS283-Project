@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
     user_id     INT             NOT NULL,
     subject_id  INT             NOT NULL,
     topic       VARCHAR(100)    NOT NULL,
-    action      ENUM('ฝึกเพิ่ม', 'ทบทวน', 'ผ่าน') NOT NULL,
+    action      ENUM('practice', 'review', 'pass') NOT NULL,  -- FIX: เปลี่ยนจากภาษาไทยเป็น English
     mastery     FLOAT           NOT NULL DEFAULT 0,
     created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

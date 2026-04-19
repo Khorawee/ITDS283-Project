@@ -33,13 +33,13 @@ def get_level(mastery: float) -> str:
 
 
 def get_action(level: str) -> str:
-    """แปลง Level เป็น Action สำหรับ Recommendation"""
+    """แปลง Level เป็น Action สำหรับ Recommendation (English เพื่อ MySQL ENUM)"""
     actions = {
-        'Weak':      'ฝึกเพิ่ม',
-        'Improving': 'ทบทวน',
-        'Strong':    'ผ่าน',
+        'Weak':      'practice',  # FIX: เปลี่ยนจาก 'ฝึกเพิ่ม'
+        'Improving': 'review',    # FIX: เปลี่ยนจาก 'ทบทวน'
+        'Strong':    'pass',      # FIX: เปลี่ยนจาก 'ผ่าน'
     }
-    return actions.get(level, 'ทบทวน')
+    return actions.get(level, 'review')
 
 
 def calculate_mastery_by_difficulty(understanding_scores_by_difficulty: dict) -> dict:
@@ -55,9 +55,9 @@ def calculate_mastery_by_difficulty(understanding_scores_by_difficulty: dict) ->
 
     Returns:
         {
-            'easy': {'mastery': 0.875, 'level': 'Strong', 'action': 'ผ่าน'},
-            'medium': {'mastery': 0.675, 'level': 'Improving', 'action': 'ทบทวน'},
-            'hard': {'mastery': 0.425, 'level': 'Weak', 'action': 'ฝึกเพิ่ม'}
+            'easy': {'mastery': 0.875, 'level': 'Strong', 'action': 'pass'},
+            'medium': {'mastery': 0.675, 'level': 'Improving', 'action': 'review'},
+            'hard': {'mastery': 0.425, 'level': 'Weak', 'action': 'practice'}
         }
     """
     result = {}
@@ -67,7 +67,7 @@ def calculate_mastery_by_difficulty(understanding_scores_by_difficulty: dict) ->
             result[difficulty] = {
                 'mastery': 0.0,
                 'level': 'Weak',
-                'action': 'ฝึกเพิ่ม'
+                'action': 'practice'
             }
             continue
         
