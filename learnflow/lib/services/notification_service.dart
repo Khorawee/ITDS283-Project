@@ -19,7 +19,7 @@ class NotificationService {
   static Future<void> init() async {
     if (!_isSupported || _initialized) return;
 
-    // FIX: initialize timezones และ set local timezone เป็น Asia/Bangkok
+    // set local timezone เป็น Asia/Bangkok
     tz_data.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Bangkok'));
 
@@ -42,8 +42,6 @@ class NotificationService {
     if (defaultTargetPlatform == TargetPlatform.android) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
-      // FIX: ขอแค่ notification permission ปกติ
-      // ไม่ขอ requestExactAlarmsPermission() เพราะทำให้ต้องไปเปิดใน Settings
       await android?.requestNotificationsPermission();
     }
   }
@@ -89,13 +87,24 @@ class NotificationService {
   static Future<void> scheduleDailyReminder() async {
     if (!_isSupported) return;
 
-    // ใช้ tz.local ที่ set เป็น Asia/Bangkok แล้ว
     final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0);
+    var scheduled =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0);
 
     // ถ้าเวลา 09:00 ผ่านไปแล้ววันนี้ → schedule วันพรุ่งนี้
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
+    }
+
+    // FIX Android 15: เช็ค exact alarm permission ก่อน
+    // ถ้าได้รับ permission → ใช้ exactAllowWhileIdle (แม่นยำกว่า)
+    // ถ้าไม่ได้ → fallback เป็น inexactAllowWhileIdle (ไม่ต้องขอ permission พิเศษ)
+    AndroidScheduleMode scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      final hasExact = await android?.canScheduleExactNotifications() ?? false;
+      if (hasExact) scheduleMode = AndroidScheduleMode.exactAllowWhileIdle;
     }
 
     await _plugin.zonedSchedule(
@@ -113,9 +122,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      // FIX: ใช้ alarmClock แทน inexactAllowWhileIdle
-      // ไม่ต้องขอ exact alarm permission พิเศษ แต่ยังทำงานได้แม้ device อยู่ใน Doze mode
-      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      androidScheduleMode: scheduleMode,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time, // repeat ทุกวัน
@@ -125,7 +132,17 @@ class NotificationService {
   // สำหรับ test notification ทันที (ขึ้นใน 5 วินาที)
   static Future<void> scheduleTestNotification() async {
     if (!_isSupported) return;
-    final scheduled = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5));
+
+    AndroidScheduleMode scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      final hasExact = await android?.canScheduleExactNotifications() ?? false;
+      if (hasExact) scheduleMode = AndroidScheduleMode.exactAllowWhileIdle;
+    }
+
+    final scheduled =
+        tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5));
     await _plugin.zonedSchedule(
       999,
       'LearnFlow Test 🔔',
@@ -145,7 +162,7 @@ class NotificationService {
           presentSound: true,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      androidScheduleMode: scheduleMode,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
