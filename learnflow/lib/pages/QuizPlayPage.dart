@@ -148,45 +148,31 @@ class _QuizPlayPageState extends State<QuizPlayPage> {
       });
     }
     final timeSpent = _timeLimitSec - _remainingSeconds;
-    
+
+    // Cache locally before sending
+    await LocalStorageService.cacheQuizSubmission(
+      quizId: _quizId,
+      answers: answers,
+      timeSpent: timeSpent,
+    );
+
     try {
-      // FIX: Cache submission locally before sending to API
-      // This ensures data is not lost if network request fails
-      await LocalStorageService.cacheQuizSubmission(
-        quizId: _quizId,
-        answers: answers,
-        timeSpent: timeSpent,
-      );
-      
       final result = await QuizService.submitQuiz(
         quizId:    _quizId,
         timeSpent: timeSpent,
         answers:   answers,
       );
-      
-      // Successfully submitted, clear from cache
-      // Note: In a real app, you'd clear the specific cache entry after success
-      
+
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/result',
             arguments: {'attempt_id': result['attempt_id']});
       }
     } catch (e) {
-      // Error message shown to user, but data is cached locally
-      // User can retry submission
+      // FIX: Navigate to result anyway — data is cached locally
+      // Server may have received the request even if we timed out
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('เกิดข้อผิดพลาด: ${e.toString()}'),
-            backgroundColor: const Color(0xFFE74C3C),
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'ลองใหม่',
-              textColor: Colors.white,
-              onPressed: () => _submitQuiz(),
-            ),
-          ),
-        );
+        Navigator.pushReplacementNamed(context, '/result',
+            arguments: {'attempt_id': null, 'error': e.toString()});
       }
     }
   }

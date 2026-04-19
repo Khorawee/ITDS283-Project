@@ -3,7 +3,6 @@
 /// 
 /// Features:
 /// - Firebase ID Token auto-refresh on every request
-/// - CSRF token fetch before every POST/PUT/DELETE
 /// - 15-second timeout per request
 /// - Exponential backoff retry (3 attempts: 500ms, 1s, 2s)
 /// - Smart retry: skip 4xx errors, retry 5xx + TimeoutException
@@ -45,20 +44,7 @@ class ApiService {
     };
   }
 
-  // ── CSRF Token ─────────────────────────────────────────────────────────────
-  /// ขอ CSRF token ใหม่จาก server ก่อนทุก POST/PUT/DELETE
-  /// Server ใช้ one-time token — ห้าม reuse
-  static Future<String> _getCsrfToken() async {
-    final headers = await _authHeaders();
-    final response = await http
-        .get(Uri.parse('$baseUrl/api/csrf-token'), headers: headers)
-        .timeout(_timeout);
-    if (response.statusCode == 200) {
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
-      return data['csrf_token'] as String;
-    }
-    throw ApiException('Failed to fetch CSRF token', response.statusCode);
-  }
+  // NOTE: CSRF removed — backend uses Firebase Auth (Bearer token) instead
 
   // ── GET with Retry ─────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> get(String path) async {
@@ -89,10 +75,8 @@ class ApiService {
 
   static Future<Map<String, dynamic>> _post(
       String path, Map<String, dynamic> body) async {
-    final headers   = await _authHeaders();
-    // ขอ CSRF token ใหม่ทุก POST — server invalidate หลังใช้ครั้งเดียว
-    final csrfToken = await _getCsrfToken();
-    headers['X-CSRF-Token'] = csrfToken;
+    final headers = await _authHeaders();
+    // NOTE: CSRF token removed — not needed for mobile API with Firebase Auth
 
     final response = await http
         .post(
